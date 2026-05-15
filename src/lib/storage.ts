@@ -434,8 +434,12 @@ export class StorageService {
       const contentType = response.headers.get('content-type') || undefined;
       const contentLength = parseInt(response.headers.get('content-length') || '0');
 
-      if (contentLength > MAX_FILE_SIZE) {
-        return { success: false, error: 'File size exceeds 50MB limit' };
+      if (contentLength > USERBOT_MAX_FILE_SIZE) {
+        return { success: false, error: 'File size exceeds 2GB limit' };
+      }
+      
+      if (contentLength > BOT_MAX_FILE_SIZE) {
+        return { success: false, error: `File size (${(contentLength / 1024 / 1024).toFixed(1)}MB) exceeds 50MB. Configure Userbot in Settings for files up to 2GB.` };
       }
 
       const arrayBuffer = await response.arrayBuffer();
