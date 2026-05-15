@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+:root {
+  /* Dark theme (default) */
+  --background: #0a0a0f;
+  --foreground: #ededed;
+  --primary: #6366f1;
+  --primary-hover: #818cf8;
+  --secondary: #1e1e2e;
+  --accent: #22d3ee;
+  --muted: #64748b;
+  --border: #27272a;
+  --card: #111118;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+}
+
+.light {
+  --background: #f8fafc;
+  --foreground: #1e293b;
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --secondary: #f1f5f9;
+  --accent: #06b6d4;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --card: #ffffff;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--secondary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Skeleton shimmer effect */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--secondary) 25%,
+    var(--border) 50%,
+    var(--secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(17, 17, 24, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.light .glass {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* Gradient backgrounds */
+.gradient-primary {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
+}
+
+.gradient-dark {
+  background: linear-gradient(180deg, #0a0a0f 0%, #111118 100%);
+}
+
+/* Light mode adjustments */
+.light input,
+.light textarea {
+  background: var(--secondary);
+  border-color: var(--border);
+}
+
+.light input::placeholder,
+.light textarea::placeholder {
+  color: var(--muted);
+}
+
+/* Focus states */
+input:focus,
+textarea:focus,
+button:focus {
+  outline: none;
+}
+
+/* Selection */
+::selection {
+  background: var(--primary);
+  color: white;
+}
