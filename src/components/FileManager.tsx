@@ -183,9 +183,15 @@ export function FileManager() {
         
         if (!res.ok) {
           console.error(`Failed to upload ${file.name}:`, data.error);
+          if (data.needsUserbot) {
+            alert(`❌ ${file.name}: ${data.error}\n\nGo to Settings → Telegram to configure Userbot for files over 50MB.`);
+          } else {
+            alert(`❌ ${file.name}: ${data.error}`);
+          }
         }
       } catch (error) {
         console.error(`Upload failed for ${file.name}:`, error);
+        alert(`❌ ${file.name}: Upload failed`);
       }
     }
 

@@ -49,7 +49,10 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+      return NextResponse.json({ 
+        error: result.error,
+        needsUserbot: result.needsUserbot 
+      }, { status: 400 });
     }
 
     return NextResponse.json({ file: result.file });

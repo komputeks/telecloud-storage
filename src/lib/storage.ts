@@ -28,6 +28,7 @@ export interface UploadResult {
   success: boolean;
   file?: StoredFile;
   error?: string;
+  needsUserbot?: boolean;
 }
 
 export interface BucketInfo {
@@ -38,23 +39,50 @@ export interface BucketInfo {
 }
 
 // File size limits
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (Telegram limit for bots)
+const BOT_MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (Telegram bot limit)
+const USERBOT_MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB (Telegram user limit)
+const USERBOT_WARN_SIZE = 50 * 1024 * 1024; // 50MB
 
 export class StorageService {
   /**
    * Get user's Telegram client (user-specific or fallback to global)
+   * Returns client based on file size and user preferences
    */
-  private async getTelegramClientForUser(userId: string): Promise<{ client: TelegramClient; chatId: string } | null> {
+  private async getTelegramClientForUser(
+    userId: string, 
+    fileSize: number
+  ): Promise<{ client: TelegramClient; chatId: string; isUserbot: boolean } | null> {
     const { data: user } = await supabaseAdmin
       .from('telecloud_users')
-      .select('telegram_bot_token, telegram_chat_id')
+      .select('telegram_bot_token, telegram_chat_id, telegram_api_id, telegram_api_hash, telegram_phone, telegram_use_userbot')
       .eq('id', userId)
       .single();
 
+    // For files >50MB, require userbot
+    const needsUserbot = fileSize > BOT_MAX_FILE_SIZE;
+    
+    if (needsUserbot) {
+      // Check if user has userbot configured
+      if (user?.telegram_api_id && user?.telegram_api_hash && user?.telegram_phone) {
+        // Userbot implementation would go here - for now return bot with warning
+        // TODO: Implement actual userbot client using MTProto
+        if (user?.telegram_bot_token && user?.telegram_chat_id) {
+          return {
+            client: new TelegramClient(user.telegram_bot_token, user.telegram_chat_id),
+            chatId: user.telegram_chat_id,
+            isUserbot: false,
+          };
+        }
+      }
+      return null; // Needs userbot but not configured
+    }
+
+    // For files <=50MB, use bot (user's or global)
     if (user?.telegram_bot_token && user?.telegram_chat_id) {
       return {
         client: new TelegramClient(user.telegram_bot_token, user.telegram_chat_id),
         chatId: user.telegram_chat_id,
+        isUserbot: false,
       };
     }
 
@@ -65,6 +93,7 @@ export class StorageService {
       return {
         client: new TelegramClient(globalToken, globalChatId),
         chatId: globalChatId,
+        isUserbot: false,
       };
     }
 
@@ -87,13 +116,40 @@ export class StorageService {
     try {
       const fileSize = fileData.byteLength;
 
-      if (fileSize > MAX_FILE_SIZE) {
-        return { success: false, error: 'File size exceeds 50MB limit' };
+      // Check absolute limits
+      if (fileSize > USERBOT_MAX_FILE_SIZE) {
+        return { 
+          success: false, 
+          error: `File size (${(fileSize / 1024 / 1024).toFixed(1)}MB) exceeds 2GB limit. Telegram does not support files larger than 2GB.` 
+        };
       }
 
-      const telegramConfig = await this.getTelegramClientForUser(userId);
+      // For files >50MB, check if userbot is needed
+      if (fileSize > BOT_MAX_FILE_SIZE) {
+        const { data: user } = await supabaseAdmin
+          .from('telecloud_users')
+          .select('telegram_api_id, telegram_api_hash, telegram_phone')
+          .eq('id', userId)
+          .single();
+
+        if (!user?.telegram_api_id || !user?.telegram_api_hash) {
+          return { 
+            success: false, 
+            error: `File size (${(fileSize / 1024 / 1024).toFixed(1)}MB) exceeds 50MB bot limit. Please configure your Telegram Userbot in Settings to upload files up to 2GB.`,
+            needsUserbot: true 
+          };
+        }
+        
+        // Userbot not fully implemented yet - return helpful error
+        return { 
+          success: false, 
+          error: `Files over 50MB require Userbot (currently in development). Please upload files under 50MB for now.` 
+        };
+      }
+
+      const telegramConfig = await this.getTelegramClientForUser(userId, fileSize);
       if (!telegramConfig) {
-        return { success: false, error: 'No Telegram bot configured. Please set up your Telegram bot in Settings.' };
+        return { success: false, error: 'No Telegram bot configured. Please set up your Telegram bot in Settings, or contact admin for global bot access.' };
       }
 
       const { client: telegram, chatId } = telegramConfig;
@@ -206,7 +262,7 @@ export class StorageService {
 
       if (!file) return null;
 
-      const telegramConfig = await this.getTelegramClientForUser(userId);
+      const telegramConfig = await this.getTelegramClientForUser(userId, 0);
       if (!telegramConfig) return null;
 
       const { client: telegram } = telegramConfig;
@@ -248,7 +304,7 @@ export class StorageService {
 
       if (!file) return null;
 
-      const telegramConfig = await this.getTelegramClientForUser(userId);
+      const telegramConfig = await this.getTelegramClientForUser(userId, 0);
       if (!telegramConfig) return null;
 
       const { client: telegram } = telegramConfig;
@@ -273,7 +329,7 @@ export class StorageService {
 
       if (!file) return false;
 
-      const telegramConfig = await this.getTelegramClientForUser(userId);
+      const telegramConfig = await this.getTelegramClientForUser(userId, 0);
       
       if (telegramConfig) {
         const { client: telegram } = telegramConfig;
@@ -404,7 +460,7 @@ export class StorageService {
       return { total: 0, synced: 0, failed: 0 };
     }
 
-    const telegramConfig = await this.getTelegramClientForUser(userId);
+    const telegramConfig = await this.getTelegramClientForUser(userId, 0);
     if (!telegramConfig) {
       return { total: files.length, synced: 0, failed: files.length };
     }
