@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const { data: userData, error } = await supabaseAdmin
       .from('users')
-      .select('id, email, name, telegram_bot_token, telegram_chat_id, storage_used, storage_limit, created_at')
+      .select('id, email, name, telegram_bot_token, telegram_chat_id, telegram_api_id, telegram_api_hash, telegram_phone, telegram_use_userbot, storage_used, storage_limit, created_at')
       .eq('id', user.id)
       .single();
 
@@ -33,10 +33,11 @@ export async function GET(request: NextRequest) {
     const responseData = {
       ...userData,
       has_telegram_bot: !!(userData.telegram_bot_token && userData.telegram_chat_id),
-      telegram_bot_token: undefined,
+      telegram_bot_token: userData.telegram_bot_token ? '***' + userData.telegram_bot_token.slice(-4) : '',
+      telegram_api_hash: userData.telegram_api_hash ? '***' + userData.telegram_api_hash.slice(-4) : '',
     };
 
-    return NextResponse.json({ user: responseData });
+    return NextResponse.json({ settings: responseData });
   } catch (error) {
     console.error('Get user settings error:', error);
     return NextResponse.json({ error: 'Failed to get user settings' }, { status: 500 });
@@ -58,7 +59,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, telegram_bot_token, telegram_chat_id } = body;
+    const { name, telegram_bot_token, telegram_chat_id, telegram_api_id, telegram_api_hash, telegram_phone, telegram_use_userbot } = body;
 
     // Get current user data
     const { data: currentUser } = await supabaseAdmin
@@ -81,6 +82,18 @@ export async function PUT(request: NextRequest) {
     }
     if (telegram_chat_id !== undefined) {
       updates.telegram_chat_id = telegram_chat_id || null;
+    }
+    if (telegram_api_id !== undefined) {
+      updates.telegram_api_id = telegram_api_id || null;
+    }
+    if (telegram_api_hash !== undefined) {
+      updates.telegram_api_hash = telegram_api_hash || null;
+    }
+    if (telegram_phone !== undefined) {
+      updates.telegram_phone = telegram_phone || null;
+    }
+    if (telegram_use_userbot !== undefined) {
+      updates.telegram_use_userbot = telegram_use_userbot;
     }
     
     // Update storage limit based on bot configuration
