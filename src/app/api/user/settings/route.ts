@@ -29,12 +29,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch user data' }, { status: 500 });
     }
 
-    // Don't expose the full bot token
+    // Don't expose the full bot token - send boolean flags instead
     const responseData = {
       ...userData,
       has_telegram_bot: !!(userData.telegram_bot_token && userData.telegram_chat_id),
-      telegram_bot_token: userData.telegram_bot_token ? '***' + userData.telegram_bot_token.slice(-4) : '',
-      telegram_api_hash: userData.telegram_api_hash ? '***' + userData.telegram_api_hash.slice(-4) : '',
+      has_telegram_api: !!(userData.telegram_api_id && userData.telegram_api_hash),
+      telegram_bot_token: '', // Never send token to client
+      telegram_api_hash: '', // Never send hash to client
+      telegram_api_id: userData.telegram_api_id || '',
+      telegram_chat_id: userData.telegram_chat_id || '',
+      telegram_phone: userData.telegram_phone || '',
     };
 
     return NextResponse.json({ settings: responseData });
@@ -75,19 +79,20 @@ export async function PUT(request: NextRequest) {
     
     // Handle Telegram configuration
     const hadBot = !!(currentUser?.telegram_bot_token && currentUser?.telegram_chat_id);
-    const willHaveBot = !!(telegram_bot_token && telegram_chat_id);
     
-    if (telegram_bot_token !== undefined) {
-      updates.telegram_bot_token = telegram_bot_token || null;
+    // Only update telegram_bot_token if provided and not empty (to avoid overwriting with empty string from masked display)
+    if (telegram_bot_token !== undefined && telegram_bot_token !== '') {
+      updates.telegram_bot_token = telegram_bot_token;
     }
     if (telegram_chat_id !== undefined) {
       updates.telegram_chat_id = telegram_chat_id || null;
     }
+    // Only update API hash if provided and not empty
     if (telegram_api_id !== undefined) {
       updates.telegram_api_id = telegram_api_id || null;
     }
-    if (telegram_api_hash !== undefined) {
-      updates.telegram_api_hash = telegram_api_hash || null;
+    if (telegram_api_hash !== undefined && telegram_api_hash !== '') {
+      updates.telegram_api_hash = telegram_api_hash;
     }
     if (telegram_phone !== undefined) {
       updates.telegram_phone = telegram_phone || null;
@@ -95,6 +100,11 @@ export async function PUT(request: NextRequest) {
     if (telegram_use_userbot !== undefined) {
       updates.telegram_use_userbot = telegram_use_userbot;
     }
+    
+    // Determine if user will have bot after this update
+    const newBotToken = updates.telegram_bot_token !== undefined ? updates.telegram_bot_token : currentUser?.telegram_bot_token;
+    const newChatId = updates.telegram_chat_id !== undefined ? updates.telegram_chat_id : currentUser?.telegram_chat_id;
+    const willHaveBot = !!(newBotToken && newChatId);
     
     // Update storage limit based on bot configuration
     if (!hadBot && willHaveBot) {
