@@ -46,7 +46,7 @@ export class StorageService {
    */
   private async getTelegramClientForUser(userId: string): Promise<{ client: TelegramClient; chatId: string } | null> {
     const { data: user } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('telegram_bot_token, telegram_chat_id')
       .eq('id', userId)
       .single();
@@ -99,7 +99,7 @@ export class StorageService {
       const { client: telegram, chatId } = telegramConfig;
 
       const { data: user } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('storage_used, storage_limit')
         .eq('id', userId)
         .single();
@@ -144,7 +144,7 @@ export class StorageService {
       const fileId = uuidv4();
       const now = new Date().toISOString();
       const { data: storedFile, error } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .insert({
           id: fileId,
           user_id: userId,
@@ -172,14 +172,14 @@ export class StorageService {
 
       // Update user storage
       const { data: currentUser } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('storage_used')
         .eq('id', userId)
         .single();
       
       if (currentUser) {
         await supabaseAdmin
-          .from('users')
+          .from('telecloud_users')
           .update({ storage_used: currentUser.storage_used + fileSize })
           .eq('id', userId);
       }
@@ -197,7 +197,7 @@ export class StorageService {
   async downloadFile(userId: string, bucket: string, key: string): Promise<ArrayBuffer | null> {
     try {
       const { data: file } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .select('*')
         .eq('user_id', userId)
         .eq('bucket', bucket)
@@ -223,7 +223,7 @@ export class StorageService {
    */
   async getFileInfo(userId: string, bucket: string, key: string): Promise<StoredFile | null> {
     const { data: file } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('user_id', userId)
       .eq('bucket', bucket)
@@ -239,7 +239,7 @@ export class StorageService {
   async getFileUrl(userId: string, bucket: string, key: string): Promise<string | null> {
     try {
       const { data: file } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .select('*')
         .eq('user_id', userId)
         .eq('bucket', bucket)
@@ -264,7 +264,7 @@ export class StorageService {
   async deleteFile(userId: string, bucket: string, key: string): Promise<boolean> {
     try {
       const { data: file } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .select('*')
         .eq('user_id', userId)
         .eq('bucket', bucket)
@@ -280,17 +280,17 @@ export class StorageService {
         await telegram.deleteMessage(file.telegram_message_id);
       }
 
-      await supabaseAdmin.from('files').delete().eq('id', file.id);
+      await supabaseAdmin.from('telecloud_files').delete().eq('id', file.id);
 
       const { data: currentUser } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('storage_used')
         .eq('id', userId)
         .single();
       
       if (currentUser) {
         await supabaseAdmin
-          .from('users')
+          .from('telecloud_users')
           .update({ storage_used: Math.max(0, currentUser.storage_used - file.size) })
           .eq('id', userId);
       }
@@ -313,7 +313,7 @@ export class StorageService {
     offset = 0
   ): Promise<StoredFile[]> {
     let query = supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('user_id', userId)
       .eq('bucket', bucket)
@@ -333,7 +333,7 @@ export class StorageService {
    */
   async listBuckets(userId: string): Promise<BucketInfo[]> {
     const { data } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('bucket, size')
       .eq('user_id', userId);
 
@@ -396,7 +396,7 @@ export class StorageService {
    */
   async syncAllCaptions(userId: string): Promise<{ total: number; synced: number; failed: number }> {
     const { data: files } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('user_id', userId);
 

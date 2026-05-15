@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Get file
     let query = supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('user_id', user.id);
 
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // Check if destination already exists
     const { data: existingFile } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('id')
       .eq('user_id', user.id)
       .eq('bucket', destBucket)
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // Update database
     const { data: updatedFile, error: updateError } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .update({
         bucket: destBucket,
         key: destKey,
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     let syncResult = null;
     if (syncToTelegram && file.telegram_message_id) {
       const { data: userData } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('telegram_bot_token, telegram_chat_id')
         .eq('id', user.id)
         .single();

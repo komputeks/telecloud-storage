@@ -30,7 +30,7 @@ export async function PUT(request: NextRequest) {
 
     // Update all files in the bucket
     const { error } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .update({ bucket: newName })
       .eq('user_id', user.id)
       .eq('bucket', oldName);
@@ -73,7 +73,7 @@ export async function DELETE(request: NextRequest) {
 
     // Get user's Telegram credentials
     const { data: userData } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('telegram_bot_token, telegram_chat_id')
       .eq('id', user.id)
       .single();
@@ -84,7 +84,7 @@ export async function DELETE(request: NextRequest) {
     if (moveFilesTo) {
       // Move files to another bucket
       const { error } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .update({ bucket: moveFilesTo })
         .eq('user_id', user.id)
         .eq('bucket', bucketName);
@@ -95,7 +95,7 @@ export async function DELETE(request: NextRequest) {
     } else {
       // Delete all files in the bucket
       const { data: files } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .select('*')
         .eq('user_id', user.id)
         .eq('bucket', bucketName);
@@ -113,14 +113,14 @@ export async function DELETE(request: NextRequest) {
 
           // Update user storage
           const { data: currentUser } = await supabaseAdmin
-            .from('users')
+            .from('telecloud_users')
             .select('storage_used')
             .eq('id', user.id)
             .single();
 
           if (currentUser) {
             await supabaseAdmin
-              .from('users')
+              .from('telecloud_users')
               .update({ storage_used: Math.max(0, currentUser.storage_used - file.size) })
               .eq('id', user.id);
           }
@@ -129,7 +129,7 @@ export async function DELETE(request: NextRequest) {
 
       // Delete from database
       await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .delete()
         .eq('user_id', user.id)
         .eq('bucket', bucketName);

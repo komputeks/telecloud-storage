@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     // Get admin user
     const { data: adminUser } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('id')
       .eq('is_admin', true)
       .single();
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       // Store file metadata
       const fileId = uuidv4();
       const { data: storedFile, error } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .insert({
           id: fileId,
           user_id: adminUser.id,
@@ -81,14 +81,14 @@ export async function POST(request: NextRequest) {
         
         // Update user storage
         const { data: user } = await supabaseAdmin
-          .from('users')
+          .from('telecloud_users')
           .select('storage_used')
           .eq('id', adminUser.id)
           .single();
         
         if (user) {
           await supabaseAdmin
-            .from('users')
+            .from('telecloud_users')
             .update({ storage_used: user.storage_used + (doc.file_size || 0) })
             .eq('id', adminUser.id);
         }
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       
       const fileId = uuidv4();
       const { data: storedFile, error } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .insert({
           id: fileId,
           user_id: adminUser.id,
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       
       const fileId = uuidv4();
       const { data: storedFile, error } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .insert({
           id: fileId,
           user_id: adminUser.id,
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
           const fileId = uuidv4();
           
           const { error } = await supabaseAdmin
-            .from('files')
+            .from('telecloud_files')
             .insert({
               id: fileId,
               user_id: adminUser.id,

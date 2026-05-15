@@ -57,7 +57,7 @@ export async function registerUser(
     
     // Check if user exists
     const { data: existingUser, error: checkError } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('id')
       .eq('email', cleanEmail)
       .maybeSingle();
@@ -76,7 +76,7 @@ export async function registerUser(
 
     // Create user
     const { data: user, error } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .insert({
         email: cleanEmail,
         password_hash: passwordHash,
@@ -122,7 +122,7 @@ export async function registerUser(
 export async function loginUser(email: string, password: string): Promise<AuthResult> {
   try {
     const { data: user, error } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('*')
       .eq('email', email.toLowerCase().trim())
       .maybeSingle();
@@ -174,7 +174,7 @@ export async function getUserFromToken(token: string): Promise<User | null> {
     if (!decoded) return null;
 
     const { data: user } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('*')
       .eq('id', decoded.userId)
       .maybeSingle();
@@ -198,7 +198,7 @@ export async function getUserFromToken(token: string): Promise<User | null> {
 // Update user storage
 export async function updateUserStorage(userId: string, bytesUsed: number): Promise<void> {
   await supabaseAdmin
-    .from('users')
+    .from('telecloud_users')
     .update({ storage_used: bytesUsed })
     .eq('id', userId);
 }

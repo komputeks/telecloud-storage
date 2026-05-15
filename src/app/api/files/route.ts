@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     if (fileId) {
       // Get single file
       const { data: file, error } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .select('*')
         .eq('id', fileId)
         .eq('user_id', user.id)
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
 
     let query = supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*', { count: 'exact' })
       .eq('user_id', user.id)
       .eq('bucket', bucket)
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     // Get buckets
     const { data: bucketData } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('bucket, size')
       .eq('user_id', user.id);
 
@@ -106,7 +106,7 @@ export async function PUT(request: NextRequest) {
 
     // Get current file
     const { data: currentFile, error: fetchError } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('id', fileId)
       .eq('user_id', user.id)
@@ -130,7 +130,7 @@ export async function PUT(request: NextRequest) {
     if (key || bucket) {
       // Get user's Telegram credentials
       const { data: userData } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('telegram_bot_token, telegram_chat_id')
         .eq('id', user.id)
         .single();
@@ -162,7 +162,7 @@ export async function PUT(request: NextRequest) {
 
     // Update database
     const { data: updatedFile, error: updateError } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .update(updates)
       .eq('id', fileId)
       .select()
@@ -198,7 +198,7 @@ export async function DELETE(request: NextRequest) {
     // Delete by ID or by bucket/key
     if (fileId) {
       const { data: file } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .select('*')
         .eq('id', fileId)
         .eq('user_id', user.id)
@@ -210,7 +210,7 @@ export async function DELETE(request: NextRequest) {
 
       // Delete from Telegram
       const { data: userData } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('telegram_bot_token')
         .eq('id', user.id)
         .single();
@@ -228,27 +228,27 @@ export async function DELETE(request: NextRequest) {
 
       // Update storage
       const { data: currentUser } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('storage_used')
         .eq('id', user.id)
         .single();
 
       if (currentUser) {
         await supabaseAdmin
-          .from('users')
+          .from('telecloud_users')
           .update({ storage_used: Math.max(0, currentUser.storage_used - file.size) })
           .eq('id', user.id);
       }
 
       // Delete from database
-      await supabaseAdmin.from('files').delete().eq('id', fileId);
+      await supabaseAdmin.from('telecloud_files').delete().eq('id', fileId);
 
       return NextResponse.json({ success: true });
     }
 
     if (bucket && key) {
       const { data: file } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .select('*')
         .eq('user_id', user.id)
         .eq('bucket', bucket)
@@ -261,7 +261,7 @@ export async function DELETE(request: NextRequest) {
 
       // Delete from Telegram
       const { data: userData } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('telegram_bot_token')
         .eq('id', user.id)
         .single();
@@ -279,20 +279,20 @@ export async function DELETE(request: NextRequest) {
 
       // Update storage
       const { data: currentUser } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('storage_used')
         .eq('id', user.id)
         .single();
 
       if (currentUser) {
         await supabaseAdmin
-          .from('users')
+          .from('telecloud_users')
           .update({ storage_used: Math.max(0, currentUser.storage_used - file.size) })
           .eq('id', user.id);
       }
 
       // Delete from database
-      await supabaseAdmin.from('files').delete().eq('id', file.id);
+      await supabaseAdmin.from('telecloud_files').delete().eq('id', file.id);
 
       return NextResponse.json({ success: true });
     }

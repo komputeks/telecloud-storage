@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: users, error } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('id, email, name, is_admin, storage_used, storage_limit, created_at')
       .order('created_at', { ascending: false });
 
@@ -49,7 +49,7 @@ export async function PUT(request: NextRequest) {
     const { userId, updates } = await request.json();
 
     const { data: updatedUser, error } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .update(updates)
       .eq('id', userId)
       .select()
@@ -83,10 +83,10 @@ export async function DELETE(request: NextRequest) {
     const { userId } = await request.json();
 
     // Delete user's files first
-    await supabaseAdmin.from('files').delete().eq('user_id', userId);
+    await supabaseAdmin.from('telecloud_files').delete().eq('user_id', userId);
 
     // Delete user
-    const { error } = await supabaseAdmin.from('users').delete().eq('id', userId);
+    const { error } = await supabaseAdmin.from('telecloud_users').delete().eq('id', userId);
 
     if (error) {
       return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     // Get source file
     let query = supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('user_id', user.id);
 
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     // Check if destination already exists
     const { data: existingFile } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('id')
       .eq('user_id', user.id)
       .eq('bucket', destBucket)
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     // Check storage quota
     const { data: userData } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('storage_used, storage_limit')
       .eq('id', user.id)
       .single();
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     // Get Telegram client
     const { data: userTelegram } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('telegram_bot_token, telegram_chat_id')
       .eq('id', user.id)
       .single();
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
     // Create database entry for the copy
     const newFileId = uuidv4();
     const { data: newFile, error: insertError } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .insert({
         id: newFileId,
         user_id: user.id,
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
 
     // Update user storage
     await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .update({ storage_used: (userData?.storage_used || 0) + sourceFile.size })
       .eq('id', user.id);
 

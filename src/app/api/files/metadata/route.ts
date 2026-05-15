@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const key = searchParams.get('key');
 
     let query = supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('user_id', user.id);
 
@@ -97,7 +97,7 @@ export async function PUT(request: NextRequest) {
 
     // Get current file data
     let query = supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('user_id', user.id);
 
@@ -140,7 +140,7 @@ export async function PUT(request: NextRequest) {
 
     // Update database
     const { data: updatedFile, error: updateError } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .update(dbUpdates)
       .eq('id', currentFile.id)
       .select()
@@ -155,7 +155,7 @@ export async function PUT(request: NextRequest) {
     if (syncToTelegram && currentFile.telegram_message_id) {
       // Get user's Telegram credentials
       const { data: userData } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('telegram_bot_token, telegram_chat_id')
         .eq('id', user.id)
         .single();
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
 
     // Get files
     const { data: files, error: fetchError } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('user_id', user.id)
       .in('id', fileIds);
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
 
     // Update all files
     const { error: updateError } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .update(dbUpdates)
       .in('id', fileIds);
 
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
     if (syncToTelegram && files.some(f => f.telegram_message_id)) {
       // Get user's Telegram credentials
       const { data: userData } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('telegram_bot_token, telegram_chat_id')
         .eq('id', user.id)
         .single();

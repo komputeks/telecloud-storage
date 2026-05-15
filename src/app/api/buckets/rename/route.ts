@@ -28,7 +28,7 @@ export async function PUT(request: NextRequest) {
 
     // Update all files in the bucket to the new bucket name
     const { error } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .update({ bucket: newName })
       .eq('user_id', user.id)
       .eq('bucket', oldName);

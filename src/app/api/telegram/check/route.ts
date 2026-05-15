@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user has their own Telegram bot
     const { data: userData } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('telegram_bot_token, telegram_chat_id')
       .eq('id', user.id)
       .single();

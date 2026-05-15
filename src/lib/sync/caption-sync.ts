@@ -211,7 +211,7 @@ export class CaptionSyncService {
         
         // Update sync timestamp in database
         await supabaseAdmin
-          .from('files')
+          .from('telecloud_files')
           .update({
             caption_version: CAPTION_VERSION,
             caption_synced_at: new Date().toISOString(),
@@ -253,7 +253,7 @@ export class CaptionSyncService {
 
     try {
       const { error } = await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .update({
           bucket: parsed.bucket,
           key: parsed.key,
@@ -407,7 +407,7 @@ export class MetadataChangeTracker {
     oldValue: Record<string, unknown>,
     newValue: Record<string, unknown>
   ): Promise<void> {
-    await supabaseAdmin.from('metadata_changes').insert({
+    await supabaseAdmin.from('telecloud_metadata_changes').insert({
       file_id: fileId,
       change_type: changeType,
       old_value: oldValue,
@@ -427,7 +427,7 @@ export class MetadataChangeTracker {
     new_value: Record<string, unknown>;
   }>> {
     const { data } = await supabaseAdmin
-      .from('metadata_changes')
+      .from('telecloud_metadata_changes')
       .select('*')
       .eq('file_id', fileId)
       .eq('status', 'pending')
@@ -441,7 +441,7 @@ export class MetadataChangeTracker {
    */
   static async markSynced(changeId: string): Promise<void> {
     await supabaseAdmin
-      .from('metadata_changes')
+      .from('telecloud_metadata_changes')
       .update({ status: 'synced', synced_at: new Date().toISOString() })
       .eq('id', changeId);
   }

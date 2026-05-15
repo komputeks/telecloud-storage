@@ -29,7 +29,7 @@ export async function DELETE(request: NextRequest) {
 
     // Get all files in the bucket
     const { data: files } = await supabaseAdmin
-      .from('files')
+      .from('telecloud_files')
       .select('*')
       .eq('user_id', user.id)
       .eq('bucket', bucket);
@@ -42,7 +42,7 @@ export async function DELETE(request: NextRequest) {
     if (moveFilesToDefault) {
       // Move all files to default bucket
       await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .update({ bucket: 'default' })
         .eq('user_id', user.id)
         .eq('bucket', bucket);
@@ -50,7 +50,7 @@ export async function DELETE(request: NextRequest) {
       // Delete all files from Telegram and database
       // Get user's Telegram credentials
       const { data: userData } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('telegram_bot_token, telegram_chat_id')
         .eq('id', user.id)
         .single();
@@ -72,7 +72,7 @@ export async function DELETE(request: NextRequest) {
 
       // Delete from database
       await supabaseAdmin
-        .from('files')
+        .from('telecloud_files')
         .delete()
         .eq('user_id', user.id)
         .eq('bucket', bucket);
@@ -80,14 +80,14 @@ export async function DELETE(request: NextRequest) {
       // Update user storage
       const totalSize = files.reduce((sum, f) => sum + f.size, 0);
       const { data: currentUser } = await supabaseAdmin
-        .from('users')
+        .from('telecloud_users')
         .select('storage_used')
         .eq('id', user.id)
         .single();
 
       if (currentUser) {
         await supabaseAdmin
-          .from('users')
+          .from('telecloud_users')
           .update({ storage_used: Math.max(0, currentUser.storage_used - totalSize) })
           .eq('id', user.id);
       }

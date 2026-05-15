@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: userData, error } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('id, email, name, telegram_bot_token, telegram_chat_id, telegram_api_id, telegram_api_hash, telegram_phone, telegram_use_userbot, storage_used, storage_limit, created_at')
       .eq('id', user.id)
       .single();
@@ -63,7 +63,7 @@ export async function PUT(request: NextRequest) {
 
     // Get current user data
     const { data: currentUser } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .select('telegram_bot_token, telegram_chat_id, storage_limit')
       .eq('id', user.id)
       .single();
@@ -106,7 +106,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const { data: updatedUser, error } = await supabaseAdmin
-      .from('users')
+      .from('telecloud_users')
       .update(updates)
       .eq('id', user.id)
       .select('id, email, name, storage_used, storage_limit, created_at')
