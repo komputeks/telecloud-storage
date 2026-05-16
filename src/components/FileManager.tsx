@@ -159,7 +159,7 @@ export function FileManager() {
 
   // ── Chunked upload constants & helper ──
   const CHUNK_SIZE = 49 * 1024 * 1024; // 49 MB per chunk
-  const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2 GB absolute max
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB per file (Bot API limit; larger files auto-chunked)
 
   const uploadFileChunked = async (file: File, bucket: string): Promise<boolean> => {
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
@@ -200,7 +200,7 @@ export function FileManager() {
     const total = uploadFiles.length;
     for (let i = 0; i < uploadFiles.length; i++) {
       const file = uploadFiles[i];
-      if (file.size > MAX_FILE_SIZE) { alert(`❌ ${file.name}: Exceeds 2 GB limit.`); continue; }
+      // Files >50MB are auto-chunked, no hard rejection needed
       if (file.size > CHUNK_SIZE) {
         // Large file → chunked
         setUploadProgress({ current: i + 1, total, file: `${file.name} (preparing chunks…)` });
@@ -938,7 +938,7 @@ export function FileManager() {
               <div className="text-center">
                 <Upload className="w-8 h-8 text-gray-500 mx-auto mb-2" />
                 <p className="text-gray-400 text-sm">Click to upload</p>
-                <p className="text-gray-500 text-xs">Multiple files supported • Up to 2 GB each</p>
+                <p className="text-gray-500 text-xs">Multiple files supported • Up to 50 MB each (larger files auto-chunked)</p>
               </div>
             )}
             <input 

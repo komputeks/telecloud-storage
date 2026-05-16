@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     // Handle URL upload
     if (url && !file) {
       const result = await storageService.uploadFromUrl(user.id, bucket, key, url);
-      
+
       if (!result.success) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
@@ -49,10 +49,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result.success) {
-      return NextResponse.json({ 
-        error: result.error,
-        needsUserbot: result.needsUserbot 
-      }, { status: 400 });
+      return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
     return NextResponse.json({ file: result.file });
