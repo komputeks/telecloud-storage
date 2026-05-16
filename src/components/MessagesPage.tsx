@@ -5,7 +5,7 @@ import { useAuth } from './AuthProvider';
 import { useToast } from './Toast';
 import {
   MessageSquare, Send, Loader2, Trash2, Edit3, X, Check,
-  RefreshCw, CheckSquare, Square, Clock, Plus, Hash
+  RefreshCw, CheckSquare, Square, Clock, Hash
 } from 'lucide-react';
 
 interface Message {
@@ -29,6 +29,7 @@ export function MessagesPage() {
   const [newMessage, setNewMessage] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
 
@@ -66,6 +67,7 @@ export function MessagesPage() {
 
   const editMessage = async (id: string) => {
     if (!editContent.trim()) return;
+    setEditSaving(true);
     try {
       const res = await fetch('/api/messages', {
         method: 'PUT',
@@ -73,12 +75,12 @@ export function MessagesPage() {
         body: JSON.stringify({ id, content: editContent }),
       });
       if (!res.ok) throw new Error('Edit failed');
-      toast('success', 'Message updated');
+      toast('success', 'Message updated & synced to Telegram');
       setEditingId(null);
       fetchMessages();
     } catch (err) {
       toast('error', err instanceof Error ? err.message : 'Edit failed');
-    }
+    } finally { setEditSaving(false); }
   };
 
   const deleteMessages = async (ids: string[]) => {
@@ -124,7 +126,6 @@ export function MessagesPage() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  // Group by date
   const grouped: Record<string, Message[]> = {};
   filteredMessages.forEach(m => {
     const day = new Date(m.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -134,7 +135,6 @@ export function MessagesPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] pt-16 pb-8">
-      {/* Header */}
       <header className="max-w-4xl mx-auto px-4 mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -159,18 +159,17 @@ export function MessagesPage() {
           </div>
         </div>
 
-        {/* Compose */}
+        {/* Compose — no Enter-to-send */}
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
           <textarea
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
             placeholder="Type a message to send to Telegram..."
             rows={3}
             className="w-full bg-transparent text-[var(--foreground)] text-sm placeholder:text-[var(--muted)] focus:outline-none resize-none"
           />
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
-            <p className="text-xs text-[var(--muted)]">Supports HTML formatting. Press Enter to send.</p>
+            <p className="text-xs text-[var(--muted)]">Supports HTML formatting.</p>
             <button
               onClick={sendMessage}
               disabled={!newMessage.trim() || sending}
@@ -182,7 +181,6 @@ export function MessagesPage() {
           </div>
         </div>
 
-        {/* Search */}
         <div className="mt-4 relative">
           <input
             type="text"
@@ -194,7 +192,6 @@ export function MessagesPage() {
         </div>
       </header>
 
-      {/* Messages Timeline */}
       <main className="max-w-4xl mx-auto px-4">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -214,7 +211,6 @@ export function MessagesPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Select all */}
             <div className="flex items-center gap-3 py-2 px-3 bg-[var(--card)] rounded-xl border border-[var(--border)]">
               <button onClick={toggleSelectAll} className="p-1">
                 {selected.size === filteredMessages.length && filteredMessages.length > 0
@@ -250,8 +246,15 @@ export function MessagesPage() {
                             <textarea value={editContent} onChange={e => setEditContent(e.target.value)}
                               rows={2} className="w-full px-3 py-2 bg-[var(--secondary)] border border-[var(--border)] rounded-lg text-sm text-[var(--foreground)] focus:outline-none focus:border-[#6366f1] resize-none" />
                             <div className="flex gap-2">
-                              <button onClick={() => editMessage(msg.id)} className="flex items-center gap-1 px-3 py-1.5 bg-[#6366f1] text-white rounded-lg text-xs"><Check className="w-3 h-3" /> Save</button>
-                              <button onClick={() => setEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 bg-[var(--secondary)] text-[var(--muted)] rounded-lg text-xs"><X className="w-3 h-3" /> Cancel</button>
+                              <button onClick={() => editMessage(msg.id)} disabled={editSaving}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-[#6366f1] text-white rounded-lg text-xs disabled:opacity-50">
+                                {editSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                {editSaving ? 'Saving...' : 'Save'}
+                              </button>
+                              <button onClick={() => setEditingId(null)} disabled={editSaving}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-[var(--secondary)] text-[var(--muted)] rounded-lg text-xs">
+                                <X className="w-3 h-3" /> Cancel
+                              </button>
                             </div>
                           </div>
                         ) : (
@@ -267,7 +270,7 @@ export function MessagesPage() {
                         )}
                       </div>
                       {editingId !== msg.id && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           <button onClick={() => { setEditingId(msg.id); setEditContent(msg.content); }}
                             className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[#6366f1] hover:bg-[#6366f1]/10">
                             <Edit3 className="w-3.5 h-3.5" />

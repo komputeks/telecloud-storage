@@ -370,28 +370,35 @@ export function FileManager() {
     }
   };
 
+  const [editSaving, setEditSaving] = useState(false);
+
   // Edit file metadata
   const handleEditFile = async () => {
     if (!editingFile) return;
-    
+    setEditSaving(true);
     try {
       const res = await fetch('/api/files/metadata', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileId: editingFile.id,
-          fileName: editFileName,
-          metadata: { description: editDescription }
+          updates: {
+            file_name: editFileName,
+            custom_metadata: { description: editDescription },
+          },
+          syncToTelegram: true,
         }),
       });
-      
-      if (res.ok) {
-        await fetchFiles();
-        setShowEditPopup(false);
-        setEditingFile(null);
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Edit failed');
+      toast('success', 'File updated & synced to Telegram');
+      await fetchFiles();
+      setShowEditPopup(false);
+      setEditingFile(null);
     } catch (error) {
-      console.error('Edit failed:', error);
+      toast('error', error instanceof Error ? error.message : 'Edit failed');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -401,38 +408,42 @@ export function FileManager() {
     
     setUploading(true);
     const bucketFiles = files.filter(f => f.bucket === bucketToManage);
+    let moved = 0;
     
     for (const file of bucketFiles) {
       try {
-        await fetch('/api/files/move', {
+        const res = await fetch('/api/files/move', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fileId: file.id,
             sourceBucket: bucketToManage,
-            targetBucket: moveTargetBucket,
+            sourceKey: file.key,
+            destBucket: moveTargetBucket,
+            destKey: file.key,
+            syncToTelegram: true,
           }),
         });
+        if (res.ok) moved++;
       } catch (error) {
         console.error('Move failed:', error);
       }
     }
     
-    // Update allBuckets
     setAllBuckets(prev => [...new Set([...prev, moveTargetBucket])]);
-    
+    toast('success', `Moved ${moved} file(s) to ${moveTargetBucket}`);
     await fetchFiles();
     setShowMovePopup(false);
     setBucketToManage(null);
     setUploading(false);
   };
 
-  // Delete bucket with all files
+  // Delete folder with all files
   const handleDeleteBucket = async (bucketName: string) => {
-    if (!confirm(`Delete bucket "${bucketName}" and all its files? This cannot be undone.`)) return;
+    if (!confirm(`Delete folder "${bucketName}" and all its files? This cannot be undone.`)) return;
     
     try {
-      const res = await fetch('/api/files/bucket', {
+      const res = await fetch('/api/buckets/delete', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bucket: bucketName }),
@@ -443,11 +454,16 @@ export function FileManager() {
         if (currentBucket === bucketName) {
           setCurrentBucket('default');
         }
+        toast('success', `Folder "${bucketName}" deleted`);
         await fetchFiles();
+      } else {
+        const d = await res.json();
+        toast('error', d.error || 'Delete failed');
       }
       setShowBucketActions(null);
     } catch (error) {
-      console.error('Delete bucket failed:', error);
+      console.error('Delete folder failed:', error);
+      toast('error', 'Delete failed');
     }
   };
 
@@ -643,7 +659,7 @@ export function FileManager() {
           {/* Secondary: Bucket Operations (shown when bucket selected) */}
           {!loading && currentBucket !== 'default' && (
             <div className="flex items-center gap-2 pt-2 border-t border-[#27272a] mt-2 overflow-x-auto scrollbar-hide">
-              <span className="text-xs text-gray-500 flex-shrink-0">Actions:</span>
+              <span className="text-xs text-gray-500 flex-shrink-0">Folder Actions:</span>
               <button
                 onClick={() => {
                   setBucketToManage(currentBucket);
@@ -671,7 +687,7 @@ export function FileManager() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm transition-colors whitespace-nowrap"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Delete Bucket
+                Delete Folder
               </button>
             </div>
           )}
@@ -699,7 +715,7 @@ export function FileManager() {
                 className="flex items-center gap-2 px-3 py-2 bg-[#6366f1] text-white rounded-xl text-sm font-medium"
               >
                 <CheckSquare className="w-4 h-4" />
-                {selectedFiles.size} selected
+                Actions
               </button>
             )}
             
@@ -818,7 +834,8 @@ export function FileManager() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyToClipboard(`/api/s3/${currentBucket}/${file.key}`, file.id);
+                            const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                          copyToClipboard(`${baseUrl}/preview/${file.id}`, file.id);
                           }}
                           className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#27272a] transition-colors"
                           title="Copy link"
@@ -1058,7 +1075,7 @@ export function FileManager() {
       </Popup>
 
       {/* Edit File Popup */}
-      <Popup isOpen={showEditPopup} onClose={() => { setShowEditPopup(false); setEditingFile(null); }} title="Edit File">
+      <Popup isOpen={showEditPopup} onClose={() => { if (!editSaving) { setShowEditPopup(false); setEditingFile(null); } }} title="Edit File">
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Filename</label>
@@ -1066,7 +1083,8 @@ export function FileManager() {
               type="text"
               value={editFileName}
               onChange={(e) => setEditFileName(e.target.value)}
-              className="w-full px-3 py-2.5 bg-[#1e1e2e] border border-[#27272a] rounded-xl text-white focus:outline-none focus:border-[#6366f1]"
+              disabled={editSaving}
+              className="w-full px-3 py-2.5 bg-[#1e1e2e] border border-[#27272a] rounded-xl text-white focus:outline-none focus:border-[#6366f1] disabled:opacity-50"
             />
           </div>
           <div>
@@ -1075,13 +1093,14 @@ export function FileManager() {
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2.5 bg-[#1e1e2e] border border-[#27272a] rounded-xl text-white resize-none focus:outline-none focus:border-[#6366f1]"
+              disabled={editSaving}
+              className="w-full px-3 py-2.5 bg-[#1e1e2e] border border-[#27272a] rounded-xl text-white resize-none focus:outline-none focus:border-[#6366f1] disabled:opacity-50"
               placeholder="Add a description..."
             />
           </div>
-          <button onClick={handleEditFile} className="w-full py-2.5 bg-[#6366f1] hover:bg-[#818cf8] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
-            <Edit className="w-4 h-4" />
-            Save Changes (syncs to Telegram)
+          <button onClick={handleEditFile} disabled={editSaving}
+            className="w-full py-2.5 bg-[#6366f1] hover:bg-[#818cf8] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+            {editSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving &amp; syncing...</> : <><Edit className="w-4 h-4" /> Save Changes</>}
           </button>
         </div>
       </Popup>
@@ -1145,21 +1164,51 @@ export function FileManager() {
       <Popup isOpen={showBatchPopup} onClose={() => setShowBatchPopup(false)} title="Batch Operations">
         <div className="space-y-3">
           <p className="text-gray-400 text-sm">{selectedFiles.size} files selected</p>
-          
-          <button
-            onClick={handleBatchDownloadZip}
-            className="w-full py-3 bg-[#6366f1]/20 hover:bg-[#6366f1]/30 text-[#6366f1] rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            <Package className="w-4 h-4" /> Download as ZIP
-          </button>
+
+          {/* Move to folder */}
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Move to folder</p>
+            <div className="flex flex-wrap gap-2">
+              {allBuckets.filter(b => b !== currentBucket).map(b => (
+                <button
+                  key={b}
+                  onClick={async () => {
+                    let moved = 0;
+                    for (const fid of selectedFiles) {
+                      const file = files.find(f => f.id === fid);
+                      if (file) {
+                        try {
+                          const res = await fetch('/api/files/move', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ fileId: file.id, sourceBucket: currentBucket, sourceKey: file.key, destBucket: b, destKey: file.key, syncToTelegram: true }),
+                          });
+                          if (res.ok) moved++;
+                        } catch { /* ignore */ }
+                      }
+                    }
+                    toast('success', `Moved ${moved} file(s) to ${b}`);
+                    setSelectedFiles(new Set());
+                    setShowBatchPopup(false);
+                    fetchFiles();
+                  }}
+                  className="px-3 py-2 bg-[#1e1e2e] hover:bg-[#27272a] text-white rounded-xl text-sm transition-colors flex items-center gap-2"
+                >
+                  <Folder className="w-4 h-4 text-[#6366f1]" /> {b}
+                </button>
+              ))}
+            </div>
+          </div>
           
           <button
             onClick={() => {
+              const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
               const links = Array.from(selectedFiles).map(id => {
                 const file = files.find(f => f.id === id);
-                return file ? `/api/s3/${currentBucket}/${file.key}` : '';
+                return file ? `${baseUrl}/api/files/download?bucket=${currentBucket}&key=${file.key}` : '';
               }).filter(Boolean).join('\n');
               navigator.clipboard.writeText(links);
+              toast('success', `${selectedFiles.size} download links copied`);
               setShowBatchPopup(false);
             }}
             className="w-full py-3 bg-[#1e1e2e] hover:bg-[#27272a] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
@@ -1176,25 +1225,25 @@ export function FileManager() {
         </div>
       </Popup>
 
-      {/* New Bucket Popup */}
-      <Popup isOpen={showNewBucketPopup} onClose={() => { setShowNewBucketPopup(false); setNewBucketName(''); }} title="Create Bucket">
+      {/* New Folder Popup */}
+      <Popup isOpen={showNewBucketPopup} onClose={() => { setShowNewBucketPopup(false); setNewBucketName(''); }} title="Create Folder">
         <div className="space-y-4">
           <input
             type="text"
-            placeholder="Bucket name (e.g., images, documents)"
+            placeholder="Folder name (e.g., images, documents)"
             value={newBucketName}
             onChange={(e) => setNewBucketName(e.target.value)}
             className="w-full px-3 py-2.5 bg-[#1e1e2e] border border-[#27272a] rounded-xl text-white focus:outline-none focus:border-[#6366f1]"
           />
           <button onClick={handleCreateBucket} className="w-full py-2.5 bg-[#6366f1] hover:bg-[#818cf8] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
             <FolderPlus className="w-4 h-4" />
-            Create Bucket
+            Create Folder
           </button>
         </div>
       </Popup>
 
       {/* Move Files Popup */}
-      <Popup isOpen={showMovePopup} onClose={() => { setShowMovePopup(false); setBucketToManage(null); }} title="Move Files">
+      <Popup isOpen={showMovePopup} onClose={() => { setShowMovePopup(false); setBucketToManage(null); }} title="Move Files to Another Folder">
         <div className="space-y-4">
           <p className="text-gray-400 text-sm">
             Move all files from <span className="text-white font-medium">{bucketToManage}</span> to:
@@ -1232,11 +1281,11 @@ export function FileManager() {
         </div>
       </Popup>
 
-      {/* Rename Bucket Popup */}
-      <Popup isOpen={showBucketActions === 'rename'} onClose={() => { setShowBucketActions(null); setBucketToManage(null); setNewBucketName(''); }} title="Rename Bucket">
+      {/* Rename Folder Popup */}
+      <Popup isOpen={showBucketActions === 'rename'} onClose={() => { setShowBucketActions(null); setBucketToManage(null); setNewBucketName(''); }} title="Rename Folder">
         <div className="space-y-4">
           <p className="text-gray-400 text-sm">
-            Rename bucket <span className="text-white font-medium">{bucketToManage}</span> to:
+            Rename folder <span className="text-white font-medium">{bucketToManage}</span> to:
           </p>
           
           <input
@@ -1252,7 +1301,7 @@ export function FileManager() {
             className="w-full py-2.5 bg-[#6366f1] hover:bg-[#818cf8] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
           >
             <Edit3 className="w-4 h-4" />
-            Rename Bucket
+            Rename Folder
           </button>
         </div>
       </Popup>

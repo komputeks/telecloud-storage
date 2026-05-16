@@ -1,17 +1,16 @@
 'use client';
 
-import { useState, useEffect, createContext, useContext, useCallback, ReactNode } from 'react';
+import { useState, createContext, useContext, useCallback, ReactNode } from 'react';
 import { X, CheckCircle, AlertTriangle, Info, AlertCircle } from 'lucide-react';
 
 interface ToastItem {
   id: string;
   type: 'success' | 'error' | 'warning' | 'info';
   message: string;
-  duration?: number;
 }
 
 interface ToastContextType {
-  toast: (type: ToastItem['type'], message: string, duration?: number) => void;
+  toast: (type: ToastItem['type'], message: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType>({ toast: () => {} });
@@ -23,9 +22,9 @@ export function useToast() {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  const addToast = useCallback((type: ToastItem['type'], message: string, duration = 4000) => {
+  const addToast = useCallback((type: ToastItem['type'], message: string) => {
     const id = Math.random().toString(36).slice(2);
-    setToasts(prev => [...prev, { id, type, message, duration }]);
+    setToasts(prev => [...prev, { id, type, message }]);
   }, []);
 
   const removeToast = useCallback((id: string) => {
@@ -45,11 +44,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 function ToastNotification({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) {
-  useEffect(() => {
-    const timer = setTimeout(onDismiss, item.duration || 4000);
-    return () => clearTimeout(timer);
-  }, [item.duration, onDismiss]);
-
   const icons = {
     success: <CheckCircle className="w-5 h-5 text-[#22c55e] flex-shrink-0" />,
     error: <AlertCircle className="w-5 h-5 text-[#ef4444] flex-shrink-0" />,

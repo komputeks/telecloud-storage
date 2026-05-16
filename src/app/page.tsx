@@ -9,7 +9,7 @@ import { MessagesPage } from '@/components/MessagesPage';
 import { AuthModal } from '@/components/AuthModal';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { useState, useRef, useEffect } from 'react';
-import { Loader2, LogOut, Settings, ChevronDown, User, FolderOpen, Shield, MessageSquare, Sparkles } from 'lucide-react';
+import { Loader2, Settings, ChevronDown, User, FolderOpen, Shield, MessageSquare, Sparkles, Crown } from 'lucide-react';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -17,14 +17,13 @@ export const dynamic = 'force-dynamic';
 type Page = 'files' | 'admin' | 'settings' | 'messages';
 
 export default function Home() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('files');
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -35,7 +34,6 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Show loading screen
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
@@ -47,17 +45,10 @@ export default function Home() {
     );
   }
 
-  // Show landing page for non-authenticated users
   if (!user) {
     return <LandingPage />;
   }
 
-  const handleLogout = async () => {
-    setShowDropdown(false);
-    await logout();
-  };
-
-  // Render current page
   const renderPage = () => {
     switch (currentPage) {
       case 'admin':
@@ -73,13 +64,12 @@ export default function Home() {
 
   const isUpgraded = user.is_upgraded || user.storage_limit === 0;
 
-  // Show dashboard for authenticated users
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      {/* User dropdown in top right */}
+      {/* Top nav */}
       <div className="fixed top-4 right-4 z-50">
         <div className="flex items-center gap-2" ref={dropdownRef}>
-          {/* Navigation tabs */}
+          {/* Desktop navigation tabs */}
           <div className="hidden md:flex items-center gap-1 mr-2 bg-[var(--secondary)] rounded-xl p-1">
             <button
               onClick={() => setCurrentPage('files')}
@@ -90,7 +80,7 @@ export default function Home() {
               }`}
             >
               <FolderOpen className="w-4 h-4" />
-              <span className="text-sm">Files</span>
+              <span className="text-sm">File Manager</span>
             </button>
             <button
               onClick={() => setCurrentPage('messages')}
@@ -102,6 +92,17 @@ export default function Home() {
             >
               <MessageSquare className="w-4 h-4" />
               <span className="text-sm">Messages</span>
+            </button>
+            <button
+              onClick={() => setCurrentPage('settings')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                currentPage === 'settings'
+                  ? 'bg-[#6366f1] text-white'
+                  : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              <span className="text-sm">Profile Settings</span>
             </button>
             {user.is_admin && (
               <button
@@ -118,15 +119,20 @@ export default function Home() {
             )}
           </div>
 
-          {/* Upgrade button for free users */}
-          {!isUpgraded && (
+          {/* Go Pro / Upgraded badge */}
+          {!isUpgraded ? (
             <button
               onClick={() => setShowUpgrade(true)}
               className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] hover:from-[#818cf8] hover:to-[#a78bfa] text-white rounded-xl text-xs font-medium transition-all"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              Upgrade
+              <Crown className="w-3.5 h-3.5" />
+              Go Pro
             </button>
+          ) : (
+            <div className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-[#6366f1]/10 text-[#6366f1] rounded-xl text-xs font-medium border border-[#6366f1]/20">
+              <Sparkles className="w-3.5 h-3.5" />
+              Pro
+            </div>
           )}
 
           <button
@@ -159,13 +165,19 @@ export default function Home() {
                     onClick={() => { setCurrentPage('files'); setShowDropdown(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-[var(--foreground)] hover:bg-[var(--secondary)] rounded-lg transition-colors"
                   >
-                    <FolderOpen className="w-5 h-5" /> Files
+                    <FolderOpen className="w-5 h-5" /> File Manager
                   </button>
                   <button
                     onClick={() => { setCurrentPage('messages'); setShowDropdown(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-[var(--foreground)] hover:bg-[var(--secondary)] rounded-lg transition-colors"
                   >
                     <MessageSquare className="w-5 h-5" /> Messages
+                  </button>
+                  <button
+                    onClick={() => { setCurrentPage('settings'); setShowDropdown(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-[var(--foreground)] hover:bg-[var(--secondary)] rounded-lg transition-colors"
+                  >
+                    <Settings className="w-5 h-5" /> Profile Settings
                   </button>
                   {user.is_admin && (
                     <button
@@ -180,31 +192,28 @@ export default function Home() {
                       onClick={() => { setShowUpgrade(true); setShowDropdown(false); }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6366f1] hover:bg-[#6366f1]/10 rounded-lg transition-colors"
                     >
-                      <Sparkles className="w-5 h-5" /> Upgrade to Premium
+                      <Crown className="w-5 h-5" /> Go Pro
                     </button>
                   )}
                 </div>
                 
-                <button
-                  onClick={() => { setCurrentPage('settings'); setShowDropdown(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-[var(--foreground)] hover:bg-[var(--secondary)] rounded-lg transition-colors"
-                >
-                  <Settings className="w-5 h-5" /> Settings
-                </button>
-                
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                >
-                  <LogOut className="w-5 h-5" /> Sign Out
-                </button>
+                {/* Desktop: just show Go Pro link if not upgraded */}
+                <div className="hidden md:block">
+                  {!isUpgraded && (
+                    <button
+                      onClick={() => { setShowUpgrade(true); setShowDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6366f1] hover:bg-[#6366f1]/10 rounded-lg transition-colors"
+                    >
+                      <Crown className="w-5 h-5" /> Go Pro
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Main content */}
       {renderPage()}
       
       <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />

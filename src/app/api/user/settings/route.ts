@@ -117,3 +117,41 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
   }
 }
+
+// DELETE - Disable account access (keep data in DB)
+export async function DELETE(request: NextRequest) {
+  try {
+    const token = request.cookies.get('auth_token')?.value ||
+                  request.headers.get('authorization')?.replace('Bearer ', '');
+
+    if (!token) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const user = await getUserFromToken(token);
+    if (!user) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    // Disable account by setting a flag (keep data)
+    await supabaseAdmin
+      .from('telecloud_users')
+      .update({ is_disabled: true, updated_at: new Date().toISOString() })
+      .eq('id', user.id);
+
+    // Clear the auth cookie
+    const response = NextResponse.json({ success: true });
+    response.cookies.set('auth_token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 0,
+      path: '/',
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Delete account error:', error);
+    return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
+  }
+}
