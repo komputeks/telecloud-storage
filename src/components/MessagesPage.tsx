@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthProvider';
 import { useToast } from './Toast';
 import {
@@ -25,6 +25,8 @@ export function MessagesPage() {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [sending, setSending] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,19 +34,39 @@ export function MessagesPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const PAGE_SIZE = 10;
 
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (reset = true) => {
+    if (reset) setLoading(true);
+    else setLoadingMore(true);
     try {
-      const res = await fetch('/api/messages');
+      const offset = reset ? 0 : messages.length;
+      const res = await fetch(`/api/messages?limit=${PAGE_SIZE}&offset=${offset}`);
       if (res.ok) {
         const data = await res.json();
-        setMessages(data.messages || []);
+        const newMsgs = data.messages || [];
+        if (reset) setMessages(newMsgs);
+        else setMessages(prev => [...prev, ...newMsgs]);
+        setHasMore(data.hasMore ?? false);
       }
     } catch { /* ignore */ }
-    finally { setLoading(false); }
-  }, []);
+    finally { setLoading(false); setLoadingMore(false); }
+  }, [messages.length]);
 
-  useEffect(() => { fetchMessages(); }, [fetchMessages]);
+  useEffect(() => { fetchMessages(true); }, []);
+
+  // Infinite scroll
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+        fetchMessages(false);
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, fetchMessages]);
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
@@ -59,7 +81,7 @@ export function MessagesPage() {
       if (!res.ok) throw new Error(data.error);
       toast('success', 'Message sent to Telegram!');
       setNewMessage('');
-      fetchMessages();
+      fetchMessages(true);
     } catch (err) {
       toast('error', err instanceof Error ? err.message : 'Failed to send');
     } finally { setSending(false); }
@@ -77,7 +99,7 @@ export function MessagesPage() {
       if (!res.ok) throw new Error('Edit failed');
       toast('success', 'Message updated & synced to Telegram');
       setEditingId(null);
-      fetchMessages();
+      fetchMessages(true);
     } catch (err) {
       toast('error', err instanceof Error ? err.message : 'Edit failed');
     } finally { setEditSaving(false); }
@@ -94,7 +116,7 @@ export function MessagesPage() {
       if (!res.ok) throw new Error('Delete failed');
       toast('success', `${ids.length} message(s) deleted`);
       setSelected(new Set());
-      fetchMessages();
+      fetchMessages(true);
     } catch (err) {
       toast('error', err instanceof Error ? err.message : 'Delete failed');
     }
@@ -106,15 +128,15 @@ export function MessagesPage() {
     setSelected(next);
   };
 
-  const toggleSelectAll = () => {
-    if (selected.size === filteredMessages.length) setSelected(new Set());
-    else setSelected(new Set(filteredMessages.map(m => m.id)));
-  };
-
   const filteredMessages = messages.filter(m =>
     m.content.toLowerCase().includes(search.toLowerCase()) ||
     m.channel_name?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const toggleSelectAll = () => {
+    if (selected.size === filteredMessages.length) setSelected(new Set());
+    else setSelected(new Set(filteredMessages.map(m => m.id)));
+  };
 
   const formatDate = (d: string) => {
     const date = new Date(d);
@@ -153,13 +175,13 @@ export function MessagesPage() {
                 <Trash2 className="w-4 h-4" /> Delete {selected.size}
               </button>
             )}
-            <button onClick={fetchMessages} className="p-2 rounded-lg bg-[var(--secondary)] text-[var(--muted)] hover:text-[var(--foreground)]">
+            <button onClick={() => fetchMessages(true)} className="p-2 rounded-lg bg-[var(--secondary)] text-[var(--muted)] hover:text-[var(--foreground)]">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
 
-        {/* Compose — no Enter-to-send */}
+        {/* Compose */}
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
           <textarea
             value={newMessage}
@@ -169,7 +191,7 @@ export function MessagesPage() {
             className="w-full bg-transparent text-[var(--foreground)] text-sm placeholder:text-[var(--muted)] focus:outline-none resize-none"
           />
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
-            <p className="text-xs text-[var(--muted)]">Supports HTML formatting.</p>
+            <p className="text-xs text-[var(--muted)]">Supports HTML formatting. Messages include your name & site link.</p>
             <button
               onClick={sendMessage}
               disabled={!newMessage.trim() || sending}
@@ -286,6 +308,18 @@ export function MessagesPage() {
                 </div>
               </div>
             ))}
+
+            {/* Infinite scroll sentinel */}
+            {hasMore && (
+              <div ref={sentinelRef} className="flex items-center justify-center py-4">
+                {loadingMore && (
+                  <div className="flex items-center gap-2 text-gray-500 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading more...
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>

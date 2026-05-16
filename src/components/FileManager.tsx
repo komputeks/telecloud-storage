@@ -11,6 +11,7 @@ import {
   HardDrive, FileUp, Eye,
   Link2, FileSpreadsheet, Edit3, Move, Loader2, Package
 } from 'lucide-react';
+import { BatchActionsPanel } from './BatchActionsPanel';
 
 interface FileItem {
   id: string;
@@ -131,33 +132,56 @@ export function FileManager() {
   const [bucketToManage, setBucketToManage] = useState<string | null>(null);
   const [newBucketName, setNewBucketName] = useState('');
 
-  const fetchFiles = useCallback(async () => {
-    setLoading(true);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const PAGE_SIZE = 10;
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const fetchFiles = useCallback(async (reset = true) => {
+    if (reset) { setLoading(true); setFiles([]); }
+    else setLoadingMore(true);
     try {
-      const res = await fetch(`/api/files?bucket=${currentBucket}`);
+      const offset = reset ? 0 : files.length;
+      const res = await fetch(`/api/files?bucket=${currentBucket}&limit=${PAGE_SIZE}&offset=${offset}&search=${searchQuery}`);
       const data = await res.json();
-      setFiles(data.files || []);
+      const newFiles = data.files || [];
+      if (reset) setFiles(newFiles);
+      else setFiles(prev => [...prev, ...newFiles]);
+      setHasMore(data.hasMore ?? false);
+      setTotalFiles(data.total || 0);
       
-      // Combine buckets with files and all known buckets
+      // Combine buckets
       const bucketsWithFiles = data.buckets || [];
       const bucketNames = new Set(['default', ...allBuckets, ...bucketsWithFiles.map((b: BucketInfo) => b.name)]);
-      
       const combinedBuckets = Array.from(bucketNames).map(name => {
         const existing = bucketsWithFiles.find((b: BucketInfo) => b.name === name);
         return existing || { name, file_count: 0, total_size: 0 };
       });
-      
       setBuckets(combinedBuckets);
     } catch (error) {
       console.error('Failed to fetch files:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [currentBucket, allBuckets]);
+  }, [currentBucket, allBuckets, searchQuery]);
 
   useEffect(() => {
-    fetchFiles();
-  }, [fetchFiles]);
+    fetchFiles(true);
+  }, [currentBucket, searchQuery]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+        fetchFiles(false);
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, fetchFiles]);
 
   // File size limit — Telegram Bot API max
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
@@ -372,27 +396,43 @@ export function FileManager() {
 
   const [editSaving, setEditSaving] = useState(false);
 
-  // Edit file metadata
+  // Edit file metadata — name without extension, sync to telegram
   const handleEditFile = async () => {
     if (!editingFile) return;
     setEditSaving(true);
     try {
+      // Build updates: only include non-empty changes
+      const updates: Record<string, unknown> = {};
+      
+      // Handle filename: user edits name without extension
+      if (editFileName.trim()) {
+        updates.file_name = editFileName.trim();
+      }
+      
+      // Handle description: only update if user changed it
+      if (editDescription.trim()) {
+        updates.custom_metadata = { ...(editingFile.metadata || {}), description: editDescription.trim() };
+      }
+      
+      if (Object.keys(updates).length === 0) {
+        setShowEditPopup(false);
+        setEditingFile(null);
+        return;
+      }
+
       const res = await fetch('/api/files/metadata', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileId: editingFile.id,
-          updates: {
-            file_name: editFileName,
-            custom_metadata: { description: editDescription },
-          },
+          updates,
           syncToTelegram: true,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Edit failed');
       toast('success', 'File updated & synced to Telegram');
-      await fetchFiles();
+      await fetchFiles(true);
       setShowEditPopup(false);
       setEditingFile(null);
     } catch (error) {
@@ -767,15 +807,16 @@ export function FileManager() {
               <span className="text-sm text-gray-400">
                 {selectedFiles.size > 0 ? `${selectedFiles.size} selected` : ''}
               </span>
-              <span className="text-sm text-gray-500 ml-auto">{files.length} files</span>
+              <span className="text-sm text-gray-500 ml-auto\">{totalFiles} files total</span>
             </div>
 
             {/* Grouped Files by Date */}
-            {Object.entries(groupedFiles).map(([date, dateFiles]) => (
+            {Object.entries(groupedFiles).map(([date, dateFiles]: [string, FileItem[]]) => (
               <div key={date}>
                 <div className="flex items-center gap-2 mb-3">
                   <Clock className="w-4 h-4 text-gray-500" />
                   <span className="text-sm font-medium text-gray-400">{date}</span>
+                  <span className="text-xs text-gray-600">({dateFiles.length})</span>
                   <div className="flex-1 h-px bg-[#27272a]" />
                 </div>
                 
@@ -846,8 +887,14 @@ export function FileManager() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditingFile(file);
-                            setEditFileName(file.file_name);
-                            setEditDescription(file.metadata?.description || '');
+                            // Set filename without extension for editing
+                            const lastDot = file.file_name.lastIndexOf('.');
+                            setEditFileName(lastDot > -1 ? file.file_name.slice(0, lastDot) : file.file_name);
+                            // Load current description from custom_metadata or metadata
+                            const desc = (file as Record<string, unknown>).custom_metadata 
+                              ? ((file as Record<string, unknown>).custom_metadata as Record<string, string>)?.description || ''
+                              : file.metadata?.description || '';
+                            setEditDescription(desc);
                             setShowEditPopup(true);
                           }}
                           className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#27272a] transition-colors"
@@ -874,6 +921,23 @@ export function FileManager() {
           </div>
         )}
       </main>
+
+      {/* Infinite scroll sentinel */}
+      {hasMore && !loading && (
+        <div ref={sentinelRef} className="flex items-center justify-center py-6">
+          {loadingMore && (
+            <div className="flex items-center gap-2 text-gray-500 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading more files...
+            </div>
+          )}
+        </div>
+      )}
+      {!hasMore && files.length > 0 && (
+        <div className="text-center py-4 text-xs text-gray-600">
+          Showing all {totalFiles} files
+        </div>
+      )}
 
       {/* Floating Upload Button */}
       <div className="fixed bottom-6 right-6 z-40">
@@ -1161,68 +1225,35 @@ export function FileManager() {
       </Popup>
 
       {/* Batch Operations Popup */}
-      <Popup isOpen={showBatchPopup} onClose={() => setShowBatchPopup(false)} title="Batch Operations">
-        <div className="space-y-3">
-          <p className="text-gray-400 text-sm">{selectedFiles.size} files selected</p>
-
-          {/* Move to folder */}
-          <div className="space-y-2">
-            <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Move to folder</p>
-            <div className="flex flex-wrap gap-2">
-              {allBuckets.filter(b => b !== currentBucket).map(b => (
-                <button
-                  key={b}
-                  onClick={async () => {
-                    let moved = 0;
-                    for (const fid of selectedFiles) {
-                      const file = files.find(f => f.id === fid);
-                      if (file) {
-                        try {
-                          const res = await fetch('/api/files/move', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ fileId: file.id, sourceBucket: currentBucket, sourceKey: file.key, destBucket: b, destKey: file.key, syncToTelegram: true }),
-                          });
-                          if (res.ok) moved++;
-                        } catch { /* ignore */ }
-                      }
-                    }
-                    toast('success', `Moved ${moved} file(s) to ${b}`);
-                    setSelectedFiles(new Set());
-                    setShowBatchPopup(false);
-                    fetchFiles();
-                  }}
-                  className="px-3 py-2 bg-[#1e1e2e] hover:bg-[#27272a] text-white rounded-xl text-sm transition-colors flex items-center gap-2"
-                >
-                  <Folder className="w-4 h-4 text-[#6366f1]" /> {b}
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          <button
-            onClick={() => {
-              const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-              const links = Array.from(selectedFiles).map(id => {
-                const file = files.find(f => f.id === id);
-                return file ? `${baseUrl}/api/files/download?bucket=${currentBucket}&key=${file.key}` : '';
-              }).filter(Boolean).join('\n');
-              navigator.clipboard.writeText(links);
-              toast('success', `${selectedFiles.size} download links copied`);
-              setShowBatchPopup(false);
-            }}
-            className="w-full py-3 bg-[#1e1e2e] hover:bg-[#27272a] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            <Copy className="w-4 h-4" /> Copy All Links
-          </button>
-          
-          <button
-            onClick={handleBatchDelete}
-            className="w-full py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" /> Delete All Selected
-          </button>
-        </div>
+      <Popup isOpen={showBatchPopup} onClose={() => setShowBatchPopup(false)} title={`Actions (${selectedFiles.size} selected)`} size="lg">
+        <BatchActionsPanel
+          selectedFiles={selectedFiles}
+          files={files}
+          currentBucket={currentBucket}
+          allBuckets={allBuckets}
+          onMoveFiles={async (targetBucket) => {
+            let moved = 0;
+            for (const fid of selectedFiles) {
+              const file = files.find(f => f.id === fid);
+              if (file) {
+                try {
+                  const res = await fetch('/api/files/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fileId: file.id, sourceBucket: currentBucket, sourceKey: file.key, destBucket: targetBucket, destKey: file.key, syncToTelegram: true }),
+                  });
+                  if (res.ok) moved++;
+                } catch { /* ignore */ }
+              }
+            }
+            toast('success', `Moved ${moved} file(s) to ${targetBucket}`);
+            setSelectedFiles(new Set());
+            setShowBatchPopup(false);
+            fetchFiles(true);
+          }}
+          onDelete={handleBatchDelete}
+          onClose={() => setShowBatchPopup(false)}
+        />
       </Popup>
 
       {/* New Folder Popup */}

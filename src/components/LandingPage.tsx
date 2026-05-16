@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { AuthModal } from './AuthModal';
-import { UpgradeModal } from './UpgradeModal';
 import {
   Cloud, Upload, Shield, Zap, Globe, Code, ChevronRight,
   Check, ArrowRight, Github, Terminal, Database, Lock,
@@ -11,7 +10,6 @@ import {
 
 export function LandingPage() {
   const [showAuth, setShowAuth] = useState(false);
-  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const features = [
     {
@@ -262,7 +260,7 @@ rclone ls telecloud:my-bucket/`;
                 ))}
               </ul>
               <button
-                onClick={() => setShowUpgrade(true)}
+                onClick={() => setShowAuth(true)}
                 className="w-full py-3 bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
               >
                 <CreditCard className="w-5 h-5" />
@@ -386,7 +384,6 @@ rclone ls telecloud:my-bucket/`;
       </footer>
 
       <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
-      <UpgradeModal isOpen={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }

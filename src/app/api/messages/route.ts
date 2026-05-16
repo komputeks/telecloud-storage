@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromToken } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TelegramClient } from '@/lib/telegram';
+import { CaptionBuilder } from '@/lib/sync/caption-sync';
 
-// GET - List user's messages
+// GET - List user's messages with pagination
 export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get('auth_token')?.value ||
@@ -12,13 +13,18 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromToken(token);
     if (!user) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
-    const { data: messages } = await supabaseAdmin
-      .from('telecloud_messages')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const offset = parseInt(searchParams.get('offset') || '0');
 
-    return NextResponse.json({ messages: messages || [] });
+    const { data: messages, count } = await supabaseAdmin
+      .from('telecloud_messages')
+      .select('*', { count: 'exact' })
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    return NextResponse.json({ messages: messages || [], total: count || 0, hasMore: (offset + limit) < (count || 0) });
   } catch (error) {
     console.error('Messages error:', error);
     return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
@@ -51,14 +57,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Telegram not configured. Set up in Settings.' }, { status: 400 });
     }
 
+    const username = settings?.name || user.name || user.email.split('@')[0];
+    const formattedMessage = CaptionBuilder.buildMessage(content.trim(), username);
+
     const tg = new TelegramClient(botToken, chatId);
     const result = await tg.request<{ message_id: number; chat: { title?: string; id: number } }>('sendMessage', {
       chat_id: chatId,
-      text: content,
+      text: formattedMessage,
       parse_mode: 'HTML',
     });
 
-    // Store in DB
+    // Store in DB (store original content, not formatted)
     const { data: msg, error } = await supabaseAdmin
       .from('telecloud_messages')
       .insert({
@@ -66,7 +75,7 @@ export async function POST(request: NextRequest) {
         content: content.trim(),
         telegram_message_id: result.message_id,
         telegram_chat_id: chatId,
-        author_name: settings?.name || user.name || user.email.split('@')[0],
+        author_name: username,
         channel_name: result.chat?.title || `Chat ${chatId}`,
         status: 'sent',
       })
@@ -103,22 +112,24 @@ export async function PUT(request: NextRequest) {
 
     if (!msg) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
 
-    // Edit on Telegram
+    // Edit on Telegram with formatted message
     if (msg.telegram_message_id && msg.telegram_chat_id) {
       const { data: settings } = await supabaseAdmin
         .from('telecloud_users')
-        .select('telegram_bot_token, telegram_chat_id')
+        .select('telegram_bot_token, telegram_chat_id, name')
         .eq('id', user.id)
         .single();
 
       const botToken = settings?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+      const username = settings?.name || user.name || user.email.split('@')[0];
+      const formattedMessage = CaptionBuilder.buildMessage(content.trim(), username);
       const tg = new TelegramClient(botToken, msg.telegram_chat_id);
 
       try {
         await tg.request('editMessageText', {
           chat_id: msg.telegram_chat_id,
           message_id: msg.telegram_message_id,
-          text: content,
+          text: formattedMessage,
           parse_mode: 'HTML',
         });
       } catch {

@@ -168,6 +168,14 @@ export class StorageService {
       const isImage = detectedMime.startsWith('image/');
       const isVideo = detectedMime.startsWith('video/');
 
+      // Get username for caption
+      const { data: userInfo } = await supabaseAdmin
+        .from('telecloud_users')
+        .select('name, email')
+        .eq('id', userId)
+        .single();
+      const username = userInfo?.name || userInfo?.email?.split('@')[0] || 'User';
+
       const fileMetadata = {
         bucket,
         key,
@@ -178,7 +186,7 @@ export class StorageService {
         tags: tags || [],
         custom_metadata: customMetadata || {},
       };
-      const caption = CaptionBuilder.build(fileMetadata);
+      const caption = CaptionBuilder.build(fileMetadata, customMetadata, username);
 
       let message;
       try {
