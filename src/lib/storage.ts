@@ -90,16 +90,18 @@ export class StorageService {
     let globalToken = process.env.TELEGRAM_BOT_TOKEN;
     let globalChatId = process.env.TELEGRAM_CHAT_ID;
 
-    // Fallback to database settings (admin panel)
-    if (!globalToken || !globalChatId) {
+    // Fallback to database settings (admin panel) - ALWAYS check
+    try {
       const { data: settings } = await supabaseAdmin
         .from('settings')
         .select('key, value')
         .in('key', ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']);
       
       const settingsMap = new Map(settings?.map(s => [s.key, s.value]) || []);
-      globalToken = globalToken || settingsMap.get('TELEGRAM_BOT_TOKEN') || '';
-      globalChatId = globalChatId || settingsMap.get('TELEGRAM_CHAT_ID') || '';
+      if (!globalToken) globalToken = settingsMap.get('TELEGRAM_BOT_TOKEN') || '';
+      if (!globalChatId) globalChatId = settingsMap.get('TELEGRAM_CHAT_ID') || '';
+    } catch (e) {
+      console.error('Failed to fetch global bot settings:', e);
     }
 
     if (globalToken && globalChatId) {
@@ -162,7 +164,8 @@ export class StorageService {
 
       const telegramConfig = await this.getTelegramClientForUser(userId, fileSize);
       if (!telegramConfig) {
-        return { success: false, error: 'No Telegram bot configured. Please set up your Telegram bot in Settings, or contact admin for global bot access.' };
+        console.error('No telegram config found for user:', userId, 'fileSize:', fileSize);
+        return { success: false, error: 'No Telegram bot configured. Please set up your Telegram bot in Settings, or contact admin to configure global bot.' };
       }
 
       const { client: telegram, chatId } = telegramConfig;
@@ -196,12 +199,20 @@ export class StorageService {
 
       // Send to Telegram with caption
       let message;
-      if (isImage && fileSize < 10 * 1024 * 1024) {
-        message = await telegram.sendPhoto(fileData, key, caption);
-      } else if (isVideo && fileSize < 50 * 1024 * 1024) {
-        message = await telegram.sendVideo(fileData, key, caption);
-      } else {
-        message = await telegram.sendDocument(fileData, key, detectedMime, caption);
+      try {
+        if (isImage && fileSize < 10 * 1024 * 1024) {
+          message = await telegram.sendPhoto(fileData, key, caption);
+        } else if (isVideo && fileSize < 50 * 1024 * 1024) {
+          message = await telegram.sendVideo(fileData, key, caption);
+        } else {
+          message = await telegram.sendDocument(fileData, key, detectedMime, caption);
+        }
+      } catch (telegramError) {
+        console.error('Telegram upload failed:', telegramError);
+        return { 
+          success: false, 
+          error: `Telegram upload failed: ${telegramError instanceof Error ? telegramError.message : 'Unknown error'}` 
+        };
       }
 
       const document = message.document || message.video || message.photo?.[message.photo.length - 1];
