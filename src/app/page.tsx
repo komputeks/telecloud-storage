@@ -5,18 +5,21 @@ import { LandingPage } from '@/components/LandingPage';
 import { FileManager } from '@/components/FileManager';
 import { AdminPanel } from '@/components/AdminPanel';
 import { UserSettingsPage } from '@/components/UserSettingsPage';
+import { MessagesPage } from '@/components/MessagesPage';
 import { AuthModal } from '@/components/AuthModal';
+import { UpgradeModal } from '@/components/UpgradeModal';
 import { useState, useRef, useEffect } from 'react';
-import { Loader2, LogOut, Settings, ChevronDown, User, FolderOpen, Shield } from 'lucide-react';
+import { Loader2, LogOut, Settings, ChevronDown, User, FolderOpen, Shield, MessageSquare, Sparkles } from 'lucide-react';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-type Page = 'files' | 'admin' | 'settings';
+type Page = 'files' | 'admin' | 'settings' | 'messages';
 
 export default function Home() {
   const { user, loading, logout } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('files');
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -61,10 +64,14 @@ export default function Home() {
         return user.is_admin ? <AdminPanel /> : <FileManager />;
       case 'settings':
         return <UserSettingsPage />;
+      case 'messages':
+        return <MessagesPage />;
       default:
         return <FileManager />;
     }
   };
+
+  const isUpgraded = user.is_upgraded || user.storage_limit === 0;
 
   // Show dashboard for authenticated users
   return (
@@ -85,6 +92,17 @@ export default function Home() {
               <FolderOpen className="w-4 h-4" />
               <span className="text-sm">Files</span>
             </button>
+            <button
+              onClick={() => setCurrentPage('messages')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                currentPage === 'messages'
+                  ? 'bg-[#6366f1] text-white'
+                  : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span className="text-sm">Messages</span>
+            </button>
             {user.is_admin && (
               <button
                 onClick={() => setCurrentPage('admin')}
@@ -99,6 +117,17 @@ export default function Home() {
               </button>
             )}
           </div>
+
+          {/* Upgrade button for free users */}
+          {!isUpgraded && (
+            <button
+              onClick={() => setShowUpgrade(true)}
+              className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] hover:from-[#818cf8] hover:to-[#a78bfa] text-white rounded-xl text-xs font-medium transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Upgrade
+            </button>
+          )}
 
           <button
             onClick={() => setShowDropdown(!showDropdown)}
@@ -127,46 +156,47 @@ export default function Home() {
                 {/* Mobile navigation */}
                 <div className="md:hidden">
                   <button
-                    onClick={() => {
-                      setCurrentPage('files');
-                      setShowDropdown(false);
-                    }}
+                    onClick={() => { setCurrentPage('files'); setShowDropdown(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-[var(--foreground)] hover:bg-[var(--secondary)] rounded-lg transition-colors"
                   >
-                    <FolderOpen className="w-5 h-5" />
-                    Files
+                    <FolderOpen className="w-5 h-5" /> Files
+                  </button>
+                  <button
+                    onClick={() => { setCurrentPage('messages'); setShowDropdown(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-[var(--foreground)] hover:bg-[var(--secondary)] rounded-lg transition-colors"
+                  >
+                    <MessageSquare className="w-5 h-5" /> Messages
                   </button>
                   {user.is_admin && (
                     <button
-                      onClick={() => {
-                        setCurrentPage('admin');
-                        setShowDropdown(false);
-                      }}
+                      onClick={() => { setCurrentPage('admin'); setShowDropdown(false); }}
                       className="w-full flex items-center gap-3 px-3 py-2.5 text-[var(--foreground)] hover:bg-[var(--secondary)] rounded-lg transition-colors"
                     >
-                      <Shield className="w-5 h-5" />
-                      Admin Panel
+                      <Shield className="w-5 h-5" /> Admin Panel
+                    </button>
+                  )}
+                  {!isUpgraded && (
+                    <button
+                      onClick={() => { setShowUpgrade(true); setShowDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-[#6366f1] hover:bg-[#6366f1]/10 rounded-lg transition-colors"
+                    >
+                      <Sparkles className="w-5 h-5" /> Upgrade to Premium
                     </button>
                   )}
                 </div>
                 
                 <button
-                  onClick={() => {
-                    setCurrentPage('settings');
-                    setShowDropdown(false);
-                  }}
+                  onClick={() => { setCurrentPage('settings'); setShowDropdown(false); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-[var(--foreground)] hover:bg-[var(--secondary)] rounded-lg transition-colors"
                 >
-                  <Settings className="w-5 h-5" />
-                  Settings
+                  <Settings className="w-5 h-5" /> Settings
                 </button>
                 
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
                 >
-                  <LogOut className="w-5 h-5" />
-                  Sign Out
+                  <LogOut className="w-5 h-5" /> Sign Out
                 </button>
               </div>
             </div>
@@ -178,6 +208,7 @@ export default function Home() {
       {renderPage()}
       
       <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
+      <UpgradeModal isOpen={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import './globals.css';
 import { AuthProvider } from '@/components/AuthProvider';
 import { ThemeProvider } from '@/lib/themes/ThemeProvider';
+import { ToastProvider } from '@/components/Toast';
 
 export default function RootLayout(props: {
   children: React.ReactNode;
@@ -14,9 +15,11 @@ export default function RootLayout(props: {
       </head>
       <body className="antialiased" style={{ fontFamily: 'Inter, sans-serif' }}>
         <ThemeProvider>
-          <AuthProvider>
-            {props.children}
-          </AuthProvider>
+          <ToastProvider>
+            <AuthProvider>
+              {props.children}
+            </AuthProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

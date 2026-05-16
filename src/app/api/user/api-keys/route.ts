@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new API key
+// POST - Create new API key (one per user, no name required)
 export async function POST(request: NextRequest) {
   try {
     const token = request.cookies.get('auth_token')?.value ||
@@ -38,36 +38,39 @@ export async function POST(request: NextRequest) {
     const user = await getUserFromToken(token);
     if (!user) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
-    const { name, permissions, expires_in_days } = await request.json();
-    if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    // Check if user already has a key
+    const { data: existing } = await supabaseAdmin
+      .from('telecloud_api_keys')
+      .select('id')
+      .eq('user_id', user.id);
+
+    if (existing && existing.length > 0) {
+      return NextResponse.json({ error: 'You already have an API key. Delete it first to create a new one.' }, { status: 400 });
+    }
 
     // Generate API key: tc_<random 40 chars>
     const rawKey = `tc_${randomBytes(30).toString('base64url')}`;
     const prefix = rawKey.slice(0, 10) + '...';
     const keyHash = hashKey(rawKey);
 
-    const expiresAt = expires_in_days
-      ? new Date(Date.now() + expires_in_days * 86400000).toISOString()
-      : null;
-
     const { data: apiKey, error } = await supabaseAdmin
       .from('telecloud_api_keys')
       .insert({
         user_id: user.id,
-        name,
+        name: 'API Key',
         key_prefix: prefix,
         key_hash: keyHash,
-        permissions: permissions || 'read,write,delete',
-        expires_at: expiresAt,
+        permissions: 'read,write,delete',
+        expires_at: null, // never expires
       })
       .select()
       .single();
 
     if (error) {
+      console.error('Create API key error:', error);
       return NextResponse.json({ error: 'Failed to create API key' }, { status: 500 });
     }
 
-    // Return the full key only once — it cannot be retrieved later
     return NextResponse.json({
       key: { ...apiKey, full_key: rawKey },
       message: 'Save this key now. It will not be shown again.',

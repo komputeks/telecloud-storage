@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthProvider';
+import { useToast } from './Toast';
 import {
   Upload, Folder, File, Trash2, Download, Link, Plus, Search,
   Cloud, RefreshCw, X, Check, Copy, Image, Video, Music,
@@ -91,6 +92,7 @@ function Popup({ isOpen, onClose, title, children, size = 'md' }: {
 
 export function FileManager() {
   const { user, refreshUser } = useAuth();
+  const { toast } = useToast();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [buckets, setBuckets] = useState<BucketInfo[]>([]);
   const [allBuckets, setAllBuckets] = useState<string[]>(['default']); // Includes empty buckets
@@ -168,7 +170,7 @@ export function FileManager() {
     for (let i = 0; i < uploadFiles.length; i++) {
       const file = uploadFiles[i];
       if (file.size > MAX_FILE_SIZE) {
-        alert(`❌ ${file.name}: File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 50MB.`);
+        toast('warning', `${file.name}: File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 50MB.`);
         continue;
       }
       setUploadProgress({ current: i + 1, total, file: file.name });
@@ -179,10 +181,10 @@ export function FileManager() {
       try {
         const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
         const data = await res.json();
-        if (!res.ok) { alert(`❌ ${file.name}: ${data.error}`); }
+        if (!res.ok) { toast('error', `${file.name}: ${data.error}`); }
       } catch (error) {
         console.error(`Upload failed for ${file.name}:`, error);
-        alert(`❌ ${file.name}: Upload failed`);
+        toast('error', `${file.name}: Upload failed`);
       }
     }
     await fetchFiles();
@@ -219,11 +221,11 @@ export function FileManager() {
         if (!res.ok) {
           const data = await res.json();
           console.error(`URL upload failed for ${url}:`, data.error);
-          alert(`❌ ${filename}: ${data.error}`);
+          toast('error', `${filename}: ${data.error}`);
         }
       } catch (error) {
         console.error(`URL upload failed for ${url}:`, error);
-        alert(`❌ ${filename}: Upload failed`);
+        toast('error', `${filename}: Upload failed`);
       }
     }
 
@@ -268,11 +270,11 @@ export function FileManager() {
           if (!res.ok) {
             const data = await res.json();
             console.error(`CSV upload failed for ${filename}:`, data.error);
-            alert(`❌ ${filename}: ${data.error}`);
+            toast('error', `${filename}: ${data.error}`);
           }
         } catch (error) {
           console.error(`CSV upload failed for ${filename}:`, error);
-          alert(`❌ ${filename}: Upload failed`);
+          toast('error', `${filename}: Upload failed`);
         }
       }
     }
@@ -350,7 +352,7 @@ export function FileManager() {
       }
     } catch (error) {
       console.error('ZIP download failed:', error);
-      alert('ZIP download is not yet available. Please download files individually.');
+      toast('info', 'ZIP download is not yet available. Please download files individually.');
     }
     setShowBatchPopup(false);
   };
@@ -454,14 +456,18 @@ export function FileManager() {
     if (!bucketToManage || !newBucketName.trim()) return;
     
     try {
-      await fetch('/api/files/bucket/rename', {
-        method: 'POST',
+      const renameRes = await fetch('/api/buckets/rename', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           oldName: bucketToManage,
           newName: newBucketName.trim(),
         }),
       });
+      if (!renameRes.ok) {
+        const d = await renameRes.json();
+        throw new Error(d.error || 'Rename failed');
+      }
       
       setAllBuckets(prev => prev.map(b => b === bucketToManage ? newBucketName.trim() : b));
       if (currentBucket === bucketToManage) {
@@ -693,7 +699,7 @@ export function FileManager() {
                 className="flex items-center gap-2 px-3 py-2 bg-[#6366f1] text-white rounded-xl text-sm font-medium"
               >
                 <CheckSquare className="w-4 h-4" />
-                {selectedFiles.size} options
+                {selectedFiles.size} selected
               </button>
             )}
             
@@ -743,7 +749,7 @@ export function FileManager() {
                 )}
               </button>
               <span className="text-sm text-gray-400">
-                {selectedFiles.size > 0 ? `${selectedFiles.size} options` : ''}
+                {selectedFiles.size > 0 ? `${selectedFiles.size} selected` : ''}
               </span>
               <span className="text-sm text-gray-500 ml-auto">{files.length} files</span>
             </div>

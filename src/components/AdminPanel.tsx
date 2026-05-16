@@ -178,7 +178,8 @@ export function AdminPanel() {
     }
   };
 
-  const formatSize = (bytes: number) => {
+  const formatSize = (bytes: number, context?: 'limit') => {
+    if (context === 'limit' && bytes === 0) return 'Unlimited';
     if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -346,12 +347,12 @@ export function AdminPanel() {
                       <div className="w-32">
                         <div className="flex items-center justify-between text-xs mb-1">
                           <span className="text-[var(--muted)]">{formatSize(u.storage_used)}</span>
-                          <span className="text-[var(--muted)]">{formatSize(u.storage_limit)}</span>
+                          <span className="text-[var(--muted)]">{formatSize(u.storage_limit, 'limit')}</span>
                         </div>
                         <div className="h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
                           <div
                             className="h-full bg-gradient-to-r from-[#6366f1] to-[#22d3ee] rounded-full"
-                            style={{ width: `${Math.min((u.storage_used / u.storage_limit) * 100, 100)}%` }}
+                            style={{ width: u.storage_limit === 0 ? '0%' : `${Math.min((u.storage_used / u.storage_limit) * 100, 100)}%` }}
                           />
                         </div>
                       </div>

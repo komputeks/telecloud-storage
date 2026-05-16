@@ -128,8 +128,9 @@ export function UserSettingsPage() {
     }
   };
 
-  const formatSize = (bytes: number) => {
-    if (bytes === 0) return 'Unlimited';
+  const formatSize = (bytes: number, context?: 'limit') => {
+    if (context === 'limit' && bytes === 0) return 'Unlimited';
+    if (bytes === 0) return '0 B';
     if (bytes < 1024) return bytes + ' B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -390,12 +391,12 @@ export function UserSettingsPage() {
                       <div className="h-3 bg-[var(--secondary)] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-[#6366f1] to-[#22d3ee] rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(((user?.storage_used || 0) / (user?.storage_limit || 1)) * 100, 100)}%` }}
+                          style={{ width: (user?.storage_limit || 0) === 0 ? '0%' : `${Math.min(((user?.storage_used || 0) / (user?.storage_limit || 1)) * 100, 100)}%` }}
                         />
                       </div>
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-[var(--muted)] text-sm">0 B</span>
-                        <span className="text-[var(--muted)] text-sm">{formatSize(user?.storage_limit || 0)} limit</span>
+                        <span className="text-[var(--muted)] text-sm">{formatSize(user?.storage_limit || 0, 'limit')} limit</span>
                       </div>
                     </>
                   ) : (
@@ -413,7 +414,7 @@ export function UserSettingsPage() {
                   <div className="bg-[var(--secondary)] rounded-xl p-4">
                     <p className="text-[var(--muted)] text-sm">Limit</p>
                     <p className="text-2xl font-bold text-[var(--foreground)]">
-                      {(user?.storage_limit || 0) === 0 ? 'Unlimited' : formatSize(user?.storage_limit || 0)}
+                      {formatSize(user?.storage_limit || 0, 'limit')}
                     </p>
                   </div>
                 </div>
@@ -523,6 +524,7 @@ export function UserSettingsPage() {
   );
 }
 
+
 // API Keys Tab Component
 function ApiKeysTab() {
   const [keys, setKeys] = useState<Array<{
@@ -531,11 +533,9 @@ function ApiKeysTab() {
   }>>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [newKeyName, setNewKeyName] = useState('');
-  const [newKeyPerms, setNewKeyPerms] = useState('read,write,delete');
-  const [newKeyExpiry, setNewKeyExpiry] = useState('');
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
 
   const fetchKeys = async () => {
     try {
@@ -551,26 +551,22 @@ function ApiKeysTab() {
   useEffect(() => { fetchKeys(); }, []);
 
   const createKey = async () => {
-    if (!newKeyName.trim()) return;
     setCreating(true);
+    setError('');
     try {
       const res = await fetch('/api/user/api-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newKeyName,
-          permissions: newKeyPerms,
-          expires_in_days: newKeyExpiry ? parseInt(newKeyExpiry) : undefined,
-        }),
+        body: JSON.stringify({}),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setRevealedKey(data.key.full_key);
-        setNewKeyName('');
-        setNewKeyExpiry('');
-        fetchKeys();
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to create key');
+        return;
       }
-    } catch { /* ignore */ }
+      setRevealedKey(data.key.full_key);
+      fetchKeys();
+    } catch { setError('Failed to create key'); }
     finally { setCreating(false); }
   };
 
@@ -581,6 +577,7 @@ function ApiKeysTab() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyId }),
     });
+    setRevealedKey(null);
     fetchKeys();
   };
 
@@ -590,15 +587,17 @@ function ApiKeysTab() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const hasKey = keys.length > 0;
+
   return (
     <div className="space-y-6">
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
         <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2 flex items-center gap-2">
           <Key className="w-5 h-5 text-[#6366f1]" />
-          API Keys
+          API Key
         </h3>
         <p className="text-sm text-[var(--muted)] mb-4">
-          Create API keys for S3-compatible API, webhooks, or programmatic access.
+          Your API key gives full access to the S3-compatible API. One key per account, never expires.
         </p>
 
         {revealedKey && (
@@ -618,50 +617,32 @@ function ApiKeysTab() {
           </div>
         )}
 
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input type="text" placeholder="Key name" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)}
-              className="px-3 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] text-sm focus:outline-none focus:border-[#6366f1]" />
-            <select value={newKeyPerms} onChange={(e) => setNewKeyPerms(e.target.value)}
-              className="px-3 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] text-sm focus:outline-none focus:border-[#6366f1]">
-              <option value="read,write,delete">Full Access</option>
-              <option value="read,write">Read & Write</option>
-              <option value="read">Read Only</option>
-            </select>
-            <select value={newKeyExpiry} onChange={(e) => setNewKeyExpiry(e.target.value)}
-              className="px-3 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] text-sm focus:outline-none focus:border-[#6366f1]">
-              <option value="">Never expires</option>
-              <option value="30">30 days</option>
-              <option value="90">90 days</option>
-              <option value="365">1 year</option>
-            </select>
+        {error && (
+          <div className="mb-4 p-3 bg-[#ef4444]/10 border border-[#ef4444]/20 rounded-xl text-sm text-[#ef4444]">
+            {error}
           </div>
-          <button onClick={createKey} disabled={!newKeyName.trim() || creating}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#6366f1] hover:bg-[#818cf8] text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
-            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            Create API Key
-          </button>
-        </div>
-      </div>
+        )}
 
-      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center"><Loader2 className="w-6 h-6 text-[#6366f1] animate-spin mx-auto" /></div>
-        ) : keys.length === 0 ? (
-          <div className="p-8 text-center text-[var(--muted)] text-sm">No API keys yet.</div>
+        {!hasKey ? (
+          <button onClick={createKey} disabled={creating}
+            className="flex items-center gap-2 px-5 py-3 bg-[#6366f1] hover:bg-[#818cf8] text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
+            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Generate API Key
+          </button>
         ) : (
-          <div className="divide-y divide-[var(--border)]">
+          <div className="space-y-3">
             {keys.map((k) => (
-              <div key={k.id} className="px-4 py-3 flex items-center gap-4">
+              <div key={k.id} className="flex items-center gap-4 p-4 bg-[var(--secondary)] rounded-xl">
+                <Lock className="w-5 h-5 text-[#6366f1] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[var(--foreground)] font-medium text-sm">{k.name}</p>
+                  <code className="text-sm text-[var(--foreground)] font-mono">{k.key_prefix}{'•'.repeat(20)}</code>
                   <div className="flex items-center gap-3 mt-1 text-xs text-[var(--muted)]">
-                    <code className="bg-[var(--secondary)] px-1.5 py-0.5 rounded">{k.key_prefix}</code>
-                    <span>{k.permissions || 'full'}</span>
-                    {k.expires_at && <span>Expires: {new Date(k.expires_at).toLocaleDateString()}</span>}
+                    <span>Full access</span>
+                    <span>Never expires</span>
+                    {k.last_used_at && <span>Last used: {new Date(k.last_used_at).toLocaleDateString()}</span>}
                   </div>
                 </div>
-                <button onClick={() => revokeKey(k.id)} className="p-2 rounded-lg text-[var(--muted)] hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Revoke">
+                <button onClick={() => revokeKey(k.id)} className="p-2 rounded-lg text-[var(--muted)] hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete & regenerate">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>

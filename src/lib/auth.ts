@@ -59,12 +59,57 @@ function mapUser(user: Record<string, unknown>): User {
   };
 }
 
+// Auto-create admin from env vars on first call
+let adminChecked = false;
+export async function ensureAdminExists(): Promise<void> {
+  if (adminChecked) return;
+  adminChecked = true;
+  
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminEmail || !adminPassword) return;
+
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from('telecloud_users')
+      .select('id')
+      .eq('email', adminEmail.toLowerCase().trim())
+      .maybeSingle();
+
+    if (existing) {
+      // Ensure they are admin with unlimited storage
+      await supabaseAdmin
+        .from('telecloud_users')
+        .update({ is_admin: true, is_upgraded: true, storage_limit: 0 })
+        .eq('id', existing.id);
+      return;
+    }
+
+    // Create admin user
+    const passwordHash = await hashPassword(adminPassword);
+    await supabaseAdmin
+      .from('telecloud_users')
+      .insert({
+        email: adminEmail.toLowerCase().trim(),
+        password_hash: passwordHash,
+        name: 'Admin',
+        is_admin: true,
+        is_upgraded: true,
+        storage_used: 0,
+        storage_limit: 0, // unlimited
+      });
+  } catch (e) {
+    console.error('Admin auto-create error:', e);
+  }
+}
+
 export async function registerUser(
   email: string,
   password: string,
   name?: string
 ): Promise<AuthResult> {
   try {
+    await ensureAdminExists();
     const cleanEmail = email.toLowerCase().trim();
 
     const { data: existingUser, error: checkError } = await supabaseAdmin
@@ -115,6 +160,8 @@ export async function registerUser(
 
 export async function loginUser(email: string, password: string): Promise<AuthResult> {
   try {
+    await ensureAdminExists();
+    
     const { data: user, error } = await supabaseAdmin
       .from('telecloud_users')
       .select('*')
