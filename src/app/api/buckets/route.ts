@@ -78,8 +78,19 @@ export async function DELETE(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const botToken = userData?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = userData?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID;
+    let botToken = userData?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+    let chatId = userData?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID;
+    
+    // Fallback to database settings
+    if (!botToken || !chatId) {
+      const { data: settings } = await supabaseAdmin
+        .from('settings')
+        .select('key, value')
+        .in('key', ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']);
+      const settingsMap = new Map(settings?.map(s => [s.key, s.value]) || []);
+      botToken = botToken || settingsMap.get('TELEGRAM_BOT_TOKEN') || '';
+      chatId = chatId || settingsMap.get('TELEGRAM_CHAT_ID') || '';
+    }
 
     if (moveFilesTo) {
       // Move files to another bucket

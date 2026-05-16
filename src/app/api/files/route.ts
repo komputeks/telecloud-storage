@@ -135,8 +135,17 @@ export async function PUT(request: NextRequest) {
         .eq('id', user.id)
         .single();
 
-      const botToken = userData?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+      let botToken = userData?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
       const chatId = currentFile.telegram_chat_id;
+      
+      if (!botToken) {
+        const { data: settings } = await supabaseAdmin
+          .from('settings')
+          .select('key, value')
+          .eq('key', 'TELEGRAM_BOT_TOKEN')
+          .single();
+        botToken = settings?.value || '';
+      }
 
       if (botToken) {
         try {
@@ -215,6 +224,15 @@ export async function DELETE(request: NextRequest) {
         .eq('id', user.id)
         .single();
 
+      
+      if (!botToken) {
+        const { data: settings } = await supabaseAdmin
+          .from('settings')
+          .select('value')
+          .eq('key', 'TELEGRAM_BOT_TOKEN')
+          .single();
+        botToken = settings?.value || '';
+      }
       const botToken = userData?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
       
       if (botToken) {
@@ -259,6 +277,15 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'File not found' }, { status: 404 });
       }
 
+      
+      if (!botToken) {
+        const { data: settings } = await supabaseAdmin
+          .from('settings')
+          .select('value')
+          .eq('key', 'TELEGRAM_BOT_TOKEN')
+          .single();
+        botToken = settings?.value || '';
+      }
       // Delete from Telegram
       const { data: userData } = await supabaseAdmin
         .from('telecloud_users')

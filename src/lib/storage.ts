@@ -86,8 +86,21 @@ export class StorageService {
       };
     }
 
-    const globalToken = process.env.TELEGRAM_BOT_TOKEN;
-    const globalChatId = process.env.TELEGRAM_CHAT_ID;
+    // Try to get global bot from environment first
+    let globalToken = process.env.TELEGRAM_BOT_TOKEN;
+    let globalChatId = process.env.TELEGRAM_CHAT_ID;
+
+    // Fallback to database settings (admin panel)
+    if (!globalToken || !globalChatId) {
+      const { data: settings } = await supabaseAdmin
+        .from('settings')
+        .select('key, value')
+        .in('key', ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']);
+      
+      const settingsMap = new Map(settings?.map(s => [s.key, s.value]) || []);
+      globalToken = globalToken || settingsMap.get('TELEGRAM_BOT_TOKEN') || '';
+      globalChatId = globalChatId || settingsMap.get('TELEGRAM_CHAT_ID') || '';
+    }
 
     if (globalToken && globalChatId) {
       return {
