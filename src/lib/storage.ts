@@ -58,26 +58,11 @@ export class StorageService {
       .eq('id', userId)
       .single();
 
-    // For files >50MB, require userbot
-    const needsUserbot = fileSize > BOT_MAX_FILE_SIZE;
-    
-    if (needsUserbot) {
-      // Check if user has userbot configured
-      if (user?.telegram_api_id && user?.telegram_api_hash && user?.telegram_phone) {
-        // Userbot implementation would go here - for now return bot with warning
-        // TODO: Implement actual userbot client using MTProto
-        if (user?.telegram_bot_token && user?.telegram_chat_id) {
-          return {
-            client: new TelegramClient(user.telegram_bot_token, user.telegram_chat_id),
-            chatId: user.telegram_chat_id,
-            isUserbot: false,
-          };
-        }
-      }
-      return null; // Needs userbot but not configured
-    }
+    // For files <=50MB (or chunked pieces), use bot API (user's own or global fallback)
+    // For files >50MB sent as single upload, this would need userbot (MTProto)
+    // But since we now use chunked uploads for >50MB, each chunk is <50MB and uses bot API
 
-    // For files <=50MB, use bot (user's or global)
+    // 1) Try user's own bot first
     if (user?.telegram_bot_token && user?.telegram_chat_id) {
       return {
         client: new TelegramClient(user.telegram_bot_token, user.telegram_chat_id),
@@ -426,7 +411,7 @@ export class StorageService {
   }
 
   /**
-   * Upload from URL
+   * Upload from URL — supports large files via chunked upload
    */
   async uploadFromUrl(
     userId: string,
@@ -449,17 +434,98 @@ export class StorageService {
       if (contentLength > USERBOT_MAX_FILE_SIZE) {
         return { success: false, error: 'File size exceeds 2GB limit' };
       }
-      
-      if (contentLength > BOT_MAX_FILE_SIZE) {
-        return { success: false, error: `File size (${(contentLength / 1024 / 1024).toFixed(1)}MB) exceeds 50MB. Configure Userbot in Settings for files up to 2GB.` };
-      }
 
       const arrayBuffer = await response.arrayBuffer();
+      const actualSize = arrayBuffer.byteLength;
+
+      // If file is >50MB, use chunked upload automatically
+      if (actualSize > BOT_MAX_FILE_SIZE) {
+        return this.uploadFromUrlChunked(userId, bucket, key, arrayBuffer, contentType, metadata, tags, customMetadata);
+      }
 
       return this.uploadFile(userId, bucket, key, arrayBuffer, contentType, metadata, tags, customMetadata);
     } catch (error) {
       console.error('URL upload error:', error);
       return { success: false, error: 'Failed to upload from URL' };
+    }
+  }
+
+  /**
+   * Chunked upload for large files fetched from URL
+   */
+  private async uploadFromUrlChunked(
+    userId: string,
+    bucket: string,
+    key: string,
+    fileData: ArrayBuffer,
+    mimeType?: string,
+    metadata?: Record<string, string>,
+    tags?: string[],
+    customMetadata?: Record<string, unknown>
+  ): Promise<UploadResult> {
+    try {
+      const fileSize = fileData.byteLength;
+      const chunkSize = 49 * 1024 * 1024; // 49MB per chunk
+      const totalChunks = Math.ceil(fileSize / chunkSize);
+      const detectedMime = mimeType || mime.lookup(key) || 'application/octet-stream';
+      const fileName = key.split('/').pop() || key;
+
+      // Check storage quota
+      const { data: userData } = await supabaseAdmin
+        .from('telecloud_users')
+        .select('storage_used, storage_limit')
+        .eq('id', userId)
+        .single();
+      if (userData && userData.storage_used + fileSize > userData.storage_limit) {
+        return { success: false, error: 'Storage quota exceeded' };
+      }
+
+      // 1) Create file record
+      const fileId = uuidv4();
+      const { error: insertErr } = await supabaseAdmin.from('telecloud_files').insert({
+        id: fileId, user_id: userId, bucket, key,
+        file_name: fileName,
+        mime_type: detectedMime, size: fileSize,
+        telegram_file_id: `chunked:${totalChunks}`,
+        telegram_message_id: 0, telegram_chat_id: 'chunked',
+        tags: tags || [], custom_metadata: { ...(customMetadata || {}), is_chunked: true, total_chunks: totalChunks },
+        metadata: metadata || {}, caption_version: 2, caption_synced_at: new Date().toISOString(),
+      });
+      if (insertErr) {
+        return { success: false, error: 'Failed to initialize chunked upload' };
+      }
+
+      // 2) Upload each chunk
+      const uint8 = new Uint8Array(fileData);
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, fileSize);
+        const chunkData = uint8.slice(start, end).buffer;
+
+        const result = await this.uploadChunk(userId, bucket, fileId, i, totalChunks, chunkData, fileName);
+        if (!result.success) {
+          // Cleanup on failure
+          await supabaseAdmin.from('telecloud_file_chunks').delete().eq('file_id', fileId);
+          await supabaseAdmin.from('telecloud_files').delete().eq('id', fileId);
+          return { success: false, error: `Chunk ${i + 1}/${totalChunks} failed: ${result.error}` };
+        }
+      }
+
+      // 3) Update storage used
+      if (userData) {
+        await supabaseAdmin.from('telecloud_users')
+          .update({ storage_used: userData.storage_used + fileSize })
+          .eq('id', userId);
+      }
+
+      // 4) Return the file record
+      const { data: storedFile } = await supabaseAdmin
+        .from('telecloud_files').select('*').eq('id', fileId).single();
+
+      return { success: true, file: storedFile };
+    } catch (error) {
+      console.error('Chunked URL upload error:', error);
+      return { success: false, error: 'Chunked upload from URL failed' };
     }
   }
 

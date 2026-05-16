@@ -5,7 +5,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/lib/themes/ThemeProvider';
 import { 
   Settings, Bot, MessageSquare, Save, Loader2, Check, AlertCircle, 
-  Eye, EyeOff, HelpCircle, User, HardDrive, Sun, Moon, Monitor
+  Eye, EyeOff, HelpCircle, User, HardDrive, Sun, Moon, Monitor, Smartphone
 } from 'lucide-react';
 
 interface UserSettings {
@@ -26,7 +26,9 @@ export function UserSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [showToken, setShowToken] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'telegram' | 'storage' | 'appearance'>('profile');
+  const [showApiHash, setShowApiHash] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'telegram' | 'userbot' | 'storage' | 'appearance'>('profile');
+  const [hasGlobalBot, setHasGlobalBot] = useState(false);
   
   const [settings, setSettings] = useState<UserSettings>({
     name: '',
@@ -41,7 +43,9 @@ export function UserSettingsPage() {
   useEffect(() => {
     if (user) {
       fetchSettings();
+      checkGlobalBot();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchSettings = async () => {
@@ -59,10 +63,22 @@ export function UserSettingsPage() {
           telegram_use_userbot: data.settings?.telegram_use_userbot || false,
         });
       }
-    } catch (err) {
+    } catch {
       console.error('Failed to fetch settings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkGlobalBot = async () => {
+    try {
+      const res = await fetch('/api/telegram/check');
+      if (res.ok) {
+        const data = await res.json();
+        setHasGlobalBot(data.hasGlobalBot === true);
+      }
+    } catch {
+      // ignore
     }
   };
 
@@ -130,6 +146,9 @@ export function UserSettingsPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const hasBotConfigured = !!(settings.telegram_bot_token && settings.telegram_chat_id);
+  const hasUserbotConfigured = !!(settings.telegram_api_id && settings.telegram_api_hash && settings.telegram_phone);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
@@ -161,6 +180,7 @@ export function UserSettingsPage() {
           {[
             { id: 'profile', label: 'Profile', icon: User },
             { id: 'telegram', label: 'Telegram Bot', icon: Bot },
+            { id: 'userbot', label: 'Userbot (MTProto)', icon: Smartphone },
             { id: 'storage', label: 'Storage', icon: HardDrive },
             { id: 'appearance', label: 'Appearance', icon: Sun },
           ].map((tab) => (
@@ -215,48 +235,9 @@ export function UserSettingsPage() {
           </div>
         )}
 
-        {/* Telegram Tab */}
+        {/* Telegram Bot Tab */}
         {activeTab === 'telegram' && (
           <div className="space-y-6">
-            {/* Mode Selector */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Telegram Connection Mode</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button
-                  onClick={() => setSettings({ ...settings, telegram_use_userbot: false })}
-                  className={`p-4 rounded-xl border-2 transition-all text-left ${
-                    !settings.telegram_use_userbot
-                      ? 'border-[#6366f1] bg-[#6366f1]/10'
-                      : 'border-[var(--border)] hover:border-[var(--border)]/80'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <Bot className="w-5 h-5 text-[#6366f1] mt-0.5" />
-                    <div>
-                      <div className="font-medium text-[var(--foreground)]">Bot API (Recommended)</div>
-                      <div className="text-xs text-[var(--muted)] mt-1">50MB limit, safe, no ban risk</div>
-                    </div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setSettings({ ...settings, telegram_use_userbot: true })}
-                  className={`p-4 rounded-xl border-2 transition-all text-left ${
-                    settings.telegram_use_userbot
-                      ? 'border-[#f59e0b] bg-[#f59e0b]/10'
-                      : 'border-[var(--border)] hover:border-[var(--border)]/80'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <User className="w-5 h-5 text-[#f59e0b] mt-0.5" />
-                    <div>
-                      <div className="font-medium text-[var(--foreground)]">User Account</div>
-                      <div className="text-xs text-[var(--muted)] mt-1">2GB limit, higher ban risk</div>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-
             {/* Setup Guide */}
             <div className="bg-gradient-to-r from-[#6366f1]/20 to-[#8b5cf6]/20 border border-[#6366f1]/30 rounded-xl p-6">
               <div className="flex items-start gap-4">
@@ -264,122 +245,61 @@ export function UserSettingsPage() {
                   <HelpCircle className="w-6 h-6 text-[#6366f1]" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
-                    {settings.telegram_use_userbot ? 'User Account Setup' : 'Bot Setup'}
-                  </h3>
-                  {!settings.telegram_use_userbot ? (
-                    <ol className="text-sm text-[var(--foreground)] space-y-2">
-                      <li><span className="text-[#6366f1] font-semibold">1.</span> Open Telegram and search for <a href="https://t.me/BotFather" target="_blank" className="text-[#22d3ee] hover:underline">@BotFather</a></li>
-                      <li><span className="text-[#6366f1] font-semibold">2.</span> Send <code className="bg-[var(--secondary)] px-2 py-0.5 rounded">/newbot</code> and follow instructions</li>
-                      <li><span className="text-[#6366f1] font-semibold">3.</span> Copy the bot token</li>
-                      <li><span className="text-[#6366f1] font-semibold">4.</span> Create channel/group, add bot as admin</li>
-                      <li><span className="text-[#6366f1] font-semibold">5.</span> Get Chat ID from <a href="https://t.me/userinfobot" target="_blank" className="text-[#22d3ee] hover:underline">@userinfobot</a></li>
-                    </ol>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm text-amber-400 mb-2">⚠️ Warning: User accounts can be banned for automation</p>
-                      <ol className="text-sm text-[var(--foreground)] space-y-2">
-                        <li><span className="text-[#f59e0b] font-semibold">1.</span> Go to <a href="https://my.telegram.org" target="_blank" className="text-[#22d3ee] hover:underline">my.telegram.org</a> → API Development</li>
-                        <li><span className="text-[#f59e0b] font-semibold">2.</span> Create app, copy API ID and Hash</li>
-                        <li><span className="text-[#f59e0b] font-semibold">3.</span> Enter your phone number (with country code)</li>
-                        <li><span className="text-[#f59e0b] font-semibold">4.</span> Create a private channel for storage</li>
-                      </ol>
-                    </div>
-                  )}
+                  <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">Bot API Setup</h3>
+                  <p className="text-sm text-[var(--muted)] mb-3">
+                    Set up your own Telegram bot for private file storage. Files up to 50MB per upload (larger files are automatically split into chunks).
+                  </p>
+                  <ol className="text-sm text-[var(--foreground)] space-y-2">
+                    <li><span className="text-[#6366f1] font-semibold">1.</span> Open Telegram and search for <a href="https://t.me/BotFather" target="_blank" className="text-[#22d3ee] hover:underline">@BotFather</a></li>
+                    <li><span className="text-[#6366f1] font-semibold">2.</span> Send <code className="bg-[var(--secondary)] px-2 py-0.5 rounded">/newbot</code> and follow instructions</li>
+                    <li><span className="text-[#6366f1] font-semibold">3.</span> Copy the bot token</li>
+                    <li><span className="text-[#6366f1] font-semibold">4.</span> Create channel/group, add bot as admin</li>
+                    <li><span className="text-[#6366f1] font-semibold">5.</span> Get Chat ID from <a href="https://t.me/userinfobot" target="_blank" className="text-[#22d3ee] hover:underline">@userinfobot</a></li>
+                  </ol>
                 </div>
               </div>
             </div>
 
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Telegram Configuration</h3>
+              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Bot Credentials</h3>
               
               <div className="space-y-4">
-                {!settings.telegram_use_userbot ? (
-                  <>
-                    <div>
-                      <label className="block text-sm text-[var(--muted)] mb-2">Bot Token</label>
-                      <div className="relative">
-                        <input
-                          type={showToken ? 'text' : 'password'}
-                          value={settings.telegram_bot_token}
-                          onChange={(e) => setSettings({ ...settings, telegram_bot_token: e.target.value })}
-                          className="w-full px-4 py-3 pr-12 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#6366f1] transition-colors font-mono text-sm"
-                          placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowToken(!showToken)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)]"
-                        >
-                          {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                      <p className="text-xs text-[var(--muted)] mt-1">Get this from @BotFather on Telegram</p>
-                    </div>
+                <div>
+                  <label className="block text-sm text-[var(--muted)] mb-2">Bot Token</label>
+                  <div className="relative">
+                    <input
+                      type={showToken ? 'text' : 'password'}
+                      value={settings.telegram_bot_token}
+                      onChange={(e) => setSettings({ ...settings, telegram_bot_token: e.target.value })}
+                      className="w-full px-4 py-3 pr-12 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#6366f1] transition-colors font-mono text-sm"
+                      placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)]"
+                    >
+                      {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-[var(--muted)] mt-1">Get this from @BotFather on Telegram</p>
+                </div>
 
-                    <div>
-                      <label className="block text-sm text-[var(--muted)] mb-2">Chat ID</label>
-                      <input
-                        type="text"
-                        value={settings.telegram_chat_id}
-                        onChange={(e) => setSettings({ ...settings, telegram_chat_id: e.target.value })}
-                        className="w-full px-4 py-3 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#6366f1] transition-colors"
-                        placeholder="-1001234567890"
-                      />
-                      <p className="text-xs text-[var(--muted)] mt-1">Channel or group ID where files will be stored</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-[var(--muted)] mb-2">API ID</label>
-                        <input
-                          type="text"
-                          value={settings.telegram_api_id}
-                          onChange={(e) => setSettings({ ...settings, telegram_api_id: e.target.value })}
-                          className="w-full px-4 py-3 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#f59e0b] transition-colors"
-                          placeholder="1234567"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm text-[var(--muted)] mb-2">API Hash</label>
-                        <input
-                          type={showToken ? 'text' : 'password'}
-                          value={settings.telegram_api_hash}
-                          onChange={(e) => setSettings({ ...settings, telegram_api_hash: e.target.value })}
-                          className="w-full px-4 py-3 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#f59e0b] transition-colors font-mono text-sm"
-                          placeholder="abcdef123456..."
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-[var(--muted)] mb-2">Phone Number</label>
-                      <input
-                        type="text"
-                        value={settings.telegram_phone}
-                        onChange={(e) => setSettings({ ...settings, telegram_phone: e.target.value })}
-                        className="w-full px-4 py-3 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#f59e0b] transition-colors"
-                        placeholder="+1234567890"
-                      />
-                      <p className="text-xs text-[var(--muted)] mt-1">Your Telegram account phone number</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-[var(--muted)] mb-2">Chat ID</label>
-                      <input
-                        type="text"
-                        value={settings.telegram_chat_id}
-                        onChange={(e) => setSettings({ ...settings, telegram_chat_id: e.target.value })}
-                        className="w-full px-4 py-3 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#f59e0b] transition-colors"
-                        placeholder="-1001234567890"
-                      />
-                    </div>
-                  </>
-                )}
+                <div>
+                  <label className="block text-sm text-[var(--muted)] mb-2">Chat ID</label>
+                  <input
+                    type="text"
+                    value={settings.telegram_chat_id}
+                    onChange={(e) => setSettings({ ...settings, telegram_chat_id: e.target.value })}
+                    className="w-full px-4 py-3 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#6366f1] transition-colors"
+                    placeholder="-1001234567890"
+                  />
+                  <p className="text-xs text-[var(--muted)] mt-1">Channel or group ID where files will be stored</p>
+                </div>
 
                 <button
                   onClick={testTelegramConnection}
-                  disabled={!settings.telegram_use_userbot ? !settings.telegram_bot_token : !settings.telegram_api_id}
+                  disabled={!settings.telegram_bot_token}
                   className="flex items-center gap-2 px-4 py-2 bg-[var(--secondary)] hover:bg-[var(--border)] text-[var(--foreground)] rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <MessageSquare className="w-4 h-4" />
@@ -389,15 +309,152 @@ export function UserSettingsPage() {
             </div>
 
             {/* Status */}
-            {settings.telegram_bot_token && settings.telegram_chat_id ? (
+            {hasBotConfigured ? (
               <div className="bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-4 flex items-center gap-3">
                 <Check className="w-5 h-5 text-[#22c55e]" />
-                <span className="text-[#22c55e]">Telegram bot configured - Your files will be stored in your own Telegram storage</span>
+                <span className="text-[#22c55e]">Your own Telegram bot is configured — files will be stored in your private Telegram storage</span>
+              </div>
+            ) : hasGlobalBot ? (
+              <div className="bg-[#3b82f6]/10 border border-[#3b82f6]/30 rounded-xl p-4 flex items-start gap-3">
+                <Bot className="w-5 h-5 text-[#3b82f6] mt-0.5" />
+                <div>
+                  <span className="text-[#3b82f6] font-medium">No personal bot configured — using shared bot</span>
+                  <p className="text-[#3b82f6]/70 text-sm mt-1">
+                    You can upload files using the admin&apos;s shared Telegram bot. For private storage, set up your own bot above.
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="bg-[#f59e0b]/10 border border-[#f59e0b]/30 rounded-xl p-4 flex items-center gap-3">
                 <AlertCircle className="w-5 h-5 text-[#f59e0b]" />
-                <span className="text-[#f59e0b]">No Telegram bot configured - You won't be able to upload files until you set this up</span>
+                <span className="text-[#f59e0b]">No Telegram bot available — you won&apos;t be able to upload files until you or the admin configures a bot</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Userbot (MTProto) Tab */}
+        {activeTab === 'userbot' && (
+          <div className="space-y-6">
+            {/* Warning */}
+            <div className="bg-[#f59e0b]/10 border border-[#f59e0b]/30 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-2 rounded-lg bg-[#f59e0b]/30">
+                  <AlertCircle className="w-6 h-6 text-[#f59e0b]" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">User Account (MTProto) — Advanced</h3>
+                  <p className="text-sm text-[#f59e0b] mb-3">
+                    ⚠️ Using your personal Telegram account for automation carries a risk of account ban. Use at your own risk.
+                  </p>
+                  <p className="text-sm text-[var(--muted)] mb-3">
+                    MTProto userbot allows uploads up to 2GB per file. This is for advanced users who need large file support beyond the 50MB bot API limit.
+                  </p>
+                  <ol className="text-sm text-[var(--foreground)] space-y-2">
+                    <li><span className="text-[#f59e0b] font-semibold">1.</span> Go to <a href="https://my.telegram.org" target="_blank" className="text-[#22d3ee] hover:underline">my.telegram.org</a> → API Development</li>
+                    <li><span className="text-[#f59e0b] font-semibold">2.</span> Create an app, copy the API ID and Hash</li>
+                    <li><span className="text-[#f59e0b] font-semibold">3.</span> Enter your phone number (with country code)</li>
+                    <li><span className="text-[#f59e0b] font-semibold">4.</span> Create a private channel for storage</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">MTProto Credentials</h3>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-[var(--muted)] mb-2">API ID</label>
+                    <input
+                      type="text"
+                      value={settings.telegram_api_id}
+                      onChange={(e) => setSettings({ ...settings, telegram_api_id: e.target.value })}
+                      className="w-full px-4 py-3 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#f59e0b] transition-colors"
+                      placeholder="1234567"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-[var(--muted)] mb-2">API Hash</label>
+                    <div className="relative">
+                      <input
+                        type={showApiHash ? 'text' : 'password'}
+                        value={settings.telegram_api_hash}
+                        onChange={(e) => setSettings({ ...settings, telegram_api_hash: e.target.value })}
+                        className="w-full px-4 py-3 pr-12 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#f59e0b] transition-colors font-mono text-sm"
+                        placeholder="abcdef123456..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiHash(!showApiHash)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)]"
+                      >
+                        {showApiHash ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-[var(--muted)] mb-2">Phone Number</label>
+                  <input
+                    type="text"
+                    value={settings.telegram_phone}
+                    onChange={(e) => setSettings({ ...settings, telegram_phone: e.target.value })}
+                    className="w-full px-4 py-3 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#f59e0b] transition-colors"
+                    placeholder="+1234567890"
+                  />
+                  <p className="text-xs text-[var(--muted)] mt-1">Your Telegram account phone number with country code</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-[var(--muted)] mb-2">Storage Chat ID</label>
+                  <input
+                    type="text"
+                    value={settings.telegram_chat_id}
+                    onChange={(e) => setSettings({ ...settings, telegram_chat_id: e.target.value })}
+                    className="w-full px-4 py-3 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] focus:outline-none focus:border-[#f59e0b] transition-colors"
+                    placeholder="-1001234567890"
+                  />
+                  <p className="text-xs text-[var(--muted)] mt-1">Private channel ID where large files will be stored</p>
+                </div>
+
+                {/* Enable toggle */}
+                <div className="flex items-center justify-between p-4 bg-[var(--secondary)] rounded-xl">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--foreground)]">Enable Userbot for large files</p>
+                    <p className="text-xs text-[var(--muted)]">Use MTProto for files larger than 50MB (up to 2GB)</p>
+                  </div>
+                  <button
+                    onClick={() => setSettings({ ...settings, telegram_use_userbot: !settings.telegram_use_userbot })}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      settings.telegram_use_userbot ? 'bg-[#f59e0b]' : 'bg-[var(--border)]'
+                    }`}
+                  >
+                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                      settings.telegram_use_userbot ? 'translate-x-6' : ''
+                    }`} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Status */}
+            {hasUserbotConfigured ? (
+              <div className="bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-4 flex items-center gap-3">
+                <Check className="w-5 h-5 text-[#22c55e]" />
+                <span className="text-[#22c55e]">Userbot credentials configured{settings.telegram_use_userbot ? ' and enabled' : ' but not enabled — toggle above to activate'}</span>
+              </div>
+            ) : (
+              <div className="bg-[var(--secondary)] border border-[var(--border)] rounded-xl p-4 flex items-start gap-3">
+                <Smartphone className="w-5 h-5 text-[var(--muted)] mt-0.5" />
+                <div>
+                  <span className="text-[var(--muted)]">Userbot not configured</span>
+                  <p className="text-xs text-[var(--muted)] mt-1">
+                    This is optional. Files larger than 50MB are automatically split into chunks and uploaded via the bot API. Userbot is only needed for single-file uploads above 50MB without chunking.
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -455,7 +512,7 @@ export function UserSettingsPage() {
           <div className="space-y-6">
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
               <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">Theme</h3>
-              <p className="text-[var(--muted)] text-sm mb-4">Choose how TeleCloud looks to you. Select "System" to follow your device's theme.</p>
+              <p className="text-[var(--muted)] text-sm mb-4">Choose how TeleCloud looks to you. Select &quot;System&quot; to follow your device&apos;s theme.</p>
               
               <div className="grid grid-cols-3 gap-4">
                 <button
@@ -512,14 +569,14 @@ export function UserSettingsPage() {
 
         {/* Error/Success Messages */}
         {error && (
-          <div className="fixed bottom-4 right-4 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 animate-slideIn">
+          <div className="fixed bottom-4 right-4 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 animate-slideIn z-50">
             <AlertCircle className="w-5 h-5 text-red-400" />
             <span className="text-red-400">{error}</span>
           </div>
         )}
 
         {saved && (
-          <div className="fixed bottom-4 right-4 bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-4 flex items-center gap-3 animate-slideIn">
+          <div className="fixed bottom-4 right-4 bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-xl p-4 flex items-center gap-3 animate-slideIn z-50">
             <Check className="w-5 h-5 text-[#22c55e]" />
             <span className="text-[#22c55e]">Settings saved successfully!</span>
           </div>
@@ -527,7 +584,7 @@ export function UserSettingsPage() {
 
         {/* Save Button */}
         {activeTab !== 'appearance' && (
-          <div className="fixed bottom-0 left-0 right-0 bg-[var(--card)]/80 backdrop-blur-xl border-t border-[var(--border)] p-4">
+          <div className="fixed bottom-0 left-0 right-0 bg-[var(--card)]/80 backdrop-blur-xl border-t border-[var(--border)] p-4 z-40">
             <div className="max-w-4xl mx-auto">
               <button
                 onClick={handleSave}

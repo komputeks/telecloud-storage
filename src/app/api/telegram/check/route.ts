@@ -25,9 +25,24 @@ export async function GET(request: NextRequest) {
 
     const hasUserBot = !!(userData?.telegram_bot_token && userData.telegram_chat_id);
 
-    // Check if global bot is configured
-    const globalToken = process.env.TELEGRAM_BOT_TOKEN;
-    const globalChatId = process.env.TELEGRAM_CHAT_ID;
+    // Check if global bot is configured (env vars OR database settings)
+    let globalToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    let globalChatId = process.env.TELEGRAM_CHAT_ID || '';
+
+    // Also check database settings (admin panel)
+    try {
+      const { data: settings } = await supabaseAdmin
+        .from('settings')
+        .select('key, value')
+        .in('key', ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']);
+      
+      const settingsMap = new Map(settings?.map(s => [s.key, s.value]) || []);
+      if (!globalToken) globalToken = settingsMap.get('TELEGRAM_BOT_TOKEN') || '';
+      if (!globalChatId) globalChatId = settingsMap.get('TELEGRAM_CHAT_ID') || '';
+    } catch {
+      // ignore
+    }
+
     const hasGlobalBot = !!(globalToken && globalToken.trim() !== '' && globalChatId && globalChatId.trim() !== '');
 
     return NextResponse.json({

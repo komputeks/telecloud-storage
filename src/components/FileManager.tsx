@@ -249,12 +249,18 @@ export function FileManager() {
         formData.append('bucket', currentBucket);
         formData.append('key', filename);
 
-        await fetch('/api/files/upload', {
+        const res = await fetch('/api/files/upload', {
           method: 'POST',
           body: formData,
         });
+        if (!res.ok) {
+          const data = await res.json();
+          console.error(`URL upload failed for ${url}:`, data.error);
+          alert(`❌ ${filename}: ${data.error}`);
+        }
       } catch (error) {
         console.error(`URL upload failed for ${url}:`, error);
+        alert(`❌ ${filename}: Upload failed`);
       }
     }
 
@@ -292,12 +298,18 @@ export function FileManager() {
           formData.append('key', filename);
           formData.append('metadata', JSON.stringify({ description }));
 
-          await fetch('/api/files/upload', {
+          const res = await fetch('/api/files/upload', {
             method: 'POST',
             body: formData,
           });
+          if (!res.ok) {
+            const data = await res.json();
+            console.error(`CSV upload failed for ${filename}:`, data.error);
+            alert(`❌ ${filename}: ${data.error}`);
+          }
         } catch (error) {
           console.error(`CSV upload failed for ${filename}:`, error);
+          alert(`❌ ${filename}: Upload failed`);
         }
       }
     }
