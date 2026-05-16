@@ -223,7 +223,7 @@ export async function DELETE(request: NextRequest) {
         .select('telegram_bot_token')
         .eq('id', user.id)
         .single();
-
+      let botToken = userData?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
       
       if (!botToken) {
         const { data: settings } = await supabaseAdmin
@@ -233,7 +233,6 @@ export async function DELETE(request: NextRequest) {
           .single();
         botToken = settings?.value || '';
       }
-      const botToken = userData?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
       
       if (botToken) {
         try {
@@ -276,7 +275,6 @@ export async function DELETE(request: NextRequest) {
       if (!file) {
         return NextResponse.json({ error: 'File not found' }, { status: 404 });
       }
-
       
       if (!botToken) {
         const { data: settings } = await supabaseAdmin
