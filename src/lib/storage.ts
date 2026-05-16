@@ -28,7 +28,6 @@ export interface UploadResult {
   success: boolean;
   file?: StoredFile;
   error?: string;
-  needsUserbot?: boolean;
 }
 
 export interface BucketInfo {
@@ -38,50 +37,42 @@ export interface BucketInfo {
   created_at: string;
 }
 
-// File size limits
-const BOT_MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (Telegram bot limit)
-const USERBOT_MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB (Telegram user limit)
-const USERBOT_WARN_SIZE = 50 * 1024 * 1024; // 50MB
+// File size limit — Telegram Bot API max
+const BOT_MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export class StorageService {
   /**
-   * Get user's Telegram client (user-specific or fallback to global)
-   * Returns client based on file size and user preferences
+   * Get Telegram bot client for a user.
+   * Priority: user's own bot → global bot (env vars → DB settings)
    */
-  private async getTelegramClientForUser(
-    userId: string, 
-    fileSize: number
-  ): Promise<{ client: TelegramClient; chatId: string; isUserbot: boolean } | null> {
+  private async getTelegramClient(
+    userId: string
+  ): Promise<{ client: TelegramClient; chatId: string } | null> {
+    // 1) Try user's own bot
     const { data: user } = await supabaseAdmin
       .from('telecloud_users')
-      .select('telegram_bot_token, telegram_chat_id, telegram_api_id, telegram_api_hash, telegram_phone, telegram_use_userbot')
+      .select('telegram_bot_token, telegram_chat_id')
       .eq('id', userId)
       .single();
 
-    // For files <=50MB (or chunked pieces), use bot API (user's own or global fallback)
-    // For files >50MB sent as single upload, this would need userbot (MTProto)
-    // But since we now use chunked uploads for >50MB, each chunk is <50MB and uses bot API
-
-    // 1) Try user's own bot first
     if (user?.telegram_bot_token && user?.telegram_chat_id) {
       return {
         client: new TelegramClient(user.telegram_bot_token, user.telegram_chat_id),
         chatId: user.telegram_chat_id,
-        isUserbot: false,
       };
     }
 
-    // Try to get global bot from environment first
-    let globalToken = process.env.TELEGRAM_BOT_TOKEN;
-    let globalChatId = process.env.TELEGRAM_CHAT_ID;
+    // 2) Try global bot from environment
+    let globalToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    let globalChatId = process.env.TELEGRAM_CHAT_ID || '';
 
-    // Fallback to database settings (admin panel) - ALWAYS check
+    // 3) Fallback to database settings (admin panel)
     try {
       const { data: settings } = await supabaseAdmin
         .from('settings')
         .select('key, value')
         .in('key', ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']);
-      
+
       const settingsMap = new Map(settings?.map(s => [s.key, s.value]) || []);
       if (!globalToken) globalToken = settingsMap.get('TELEGRAM_BOT_TOKEN') || '';
       if (!globalChatId) globalChatId = settingsMap.get('TELEGRAM_CHAT_ID') || '';
@@ -93,7 +84,6 @@ export class StorageService {
       return {
         client: new TelegramClient(globalToken, globalChatId),
         chatId: globalChatId,
-        isUserbot: false,
       };
     }
 
@@ -101,7 +91,7 @@ export class StorageService {
   }
 
   /**
-   * Upload file with synchronized caption
+   * Upload file via Telegram Bot API (max 50MB)
    */
   async uploadFile(
     userId: string,
@@ -116,38 +106,31 @@ export class StorageService {
     try {
       const fileSize = fileData.byteLength;
 
-      // Check absolute limits
-      if (fileSize > USERBOT_MAX_FILE_SIZE) {
-        return { 
-          success: false, 
-          error: `File size (${(fileSize / 1024 / 1024).toFixed(1)}MB) exceeds 2GB limit. Telegram does not support files larger than 2GB.` 
-        };
-      }
-
-      // For files >49MB, tell the client to use chunked upload instead
       if (fileSize > BOT_MAX_FILE_SIZE) {
-        return { 
-          success: false, 
-          error: `USE_CHUNKED_UPLOAD`,
-          needsUserbot: false 
+        return {
+          success: false,
+          error: 'USE_CHUNKED_UPLOAD',
         };
       }
 
-      const telegramConfig = await this.getTelegramClientForUser(userId, fileSize);
+      const telegramConfig = await this.getTelegramClient(userId);
       if (!telegramConfig) {
-        console.error('No telegram config found for user:', userId, 'fileSize:', fileSize);
-        return { success: false, error: 'No Telegram bot configured. Please set up your Telegram bot in Settings, or contact admin to configure global bot.' };
+        console.error('No telegram config found for user:', userId);
+        return {
+          success: false,
+          error: 'No Telegram bot configured. Please set up your Telegram bot in Settings, or contact admin to configure global bot.',
+        };
       }
 
       const { client: telegram, chatId } = telegramConfig;
 
-      const { data: user } = await supabaseAdmin
+      const { data: userData } = await supabaseAdmin
         .from('telecloud_users')
         .select('storage_used, storage_limit')
         .eq('id', userId)
         .single();
 
-      if (user && user.storage_used + fileSize > user.storage_limit) {
+      if (userData && userData.storage_used + fileSize > userData.storage_limit) {
         return { success: false, error: 'Storage quota exceeded' };
       }
 
@@ -155,7 +138,6 @@ export class StorageService {
       const isImage = detectedMime.startsWith('image/');
       const isVideo = detectedMime.startsWith('video/');
 
-      // Build caption using CaptionBuilder
       const fileMetadata = {
         bucket,
         key,
@@ -168,7 +150,6 @@ export class StorageService {
       };
       const caption = CaptionBuilder.build(fileMetadata);
 
-      // Send to Telegram with caption
       let message;
       try {
         if (isImage && fileSize < 10 * 1024 * 1024) {
@@ -180,9 +161,9 @@ export class StorageService {
         }
       } catch (telegramError) {
         console.error('Telegram upload failed:', telegramError);
-        return { 
-          success: false, 
-          error: `Telegram upload failed: ${telegramError instanceof Error ? telegramError.message : 'Unknown error'}` 
+        return {
+          success: false,
+          error: `Telegram upload failed: ${telegramError instanceof Error ? telegramError.message : 'Unknown error'}`,
         };
       }
 
@@ -191,7 +172,6 @@ export class StorageService {
         return { success: false, error: 'Failed to get file info from Telegram' };
       }
 
-      // Store in database with caption metadata
       const fileId = uuidv4();
       const now = new Date().toISOString();
       const { data: storedFile, error } = await supabaseAdmin
@@ -222,16 +202,10 @@ export class StorageService {
       }
 
       // Update user storage
-      const { data: currentUser } = await supabaseAdmin
-        .from('telecloud_users')
-        .select('storage_used')
-        .eq('id', userId)
-        .single();
-      
-      if (currentUser) {
+      if (userData) {
         await supabaseAdmin
           .from('telecloud_users')
-          .update({ storage_used: currentUser.storage_used + fileSize })
+          .update({ storage_used: userData.storage_used + fileSize })
           .eq('id', userId);
       }
 
@@ -257,7 +231,7 @@ export class StorageService {
 
       if (!file) return null;
 
-      const telegramConfig = await this.getTelegramClientForUser(userId, 0);
+      const telegramConfig = await this.getTelegramClient(userId);
       if (!telegramConfig) return null;
 
       const { client: telegram } = telegramConfig;
@@ -299,7 +273,7 @@ export class StorageService {
 
       if (!file) return null;
 
-      const telegramConfig = await this.getTelegramClientForUser(userId, 0);
+      const telegramConfig = await this.getTelegramClient(userId);
       if (!telegramConfig) return null;
 
       const { client: telegram } = telegramConfig;
@@ -327,7 +301,7 @@ export class StorageService {
       if (this.isChunkedFile(file)) {
         await this.deleteChunkedFile(userId, file.id);
       } else {
-        const telegramConfig = await this.getTelegramClientForUser(userId, 0);
+        const telegramConfig = await this.getTelegramClient(userId);
         if (telegramConfig) {
           try { await telegramConfig.client.deleteMessage(file.telegram_message_id); } catch { /* ignore */ }
         }
@@ -340,7 +314,7 @@ export class StorageService {
         .select('storage_used')
         .eq('id', userId)
         .single();
-      
+
       if (currentUser) {
         await supabaseAdmin
           .from('telecloud_users')
@@ -393,7 +367,7 @@ export class StorageService {
     if (!data) return [];
 
     const bucketMap = new Map<string, { count: number; size: number }>();
-    
+
     for (const file of data) {
       const existing = bucketMap.get(file.bucket) || { count: 0, size: 0 };
       bucketMap.set(file.bucket, {
@@ -411,7 +385,8 @@ export class StorageService {
   }
 
   /**
-   * Upload from URL — supports large files via chunked upload
+   * Upload from URL — fetches URL then uploads via bot API.
+   * Files >50MB are automatically chunked.
    */
   async uploadFromUrl(
     userId: string,
@@ -428,15 +403,9 @@ export class StorageService {
         return { success: false, error: 'Failed to fetch URL' };
       }
 
-      const contentType = response.headers.get('content-type') || undefined;
-      const contentLength = parseInt(response.headers.get('content-length') || '0');
-
-      if (contentLength > USERBOT_MAX_FILE_SIZE) {
-        return { success: false, error: 'File size exceeds 2GB limit' };
-      }
-
       const arrayBuffer = await response.arrayBuffer();
       const actualSize = arrayBuffer.byteLength;
+      const contentType = response.headers.get('content-type') || undefined;
 
       // If file is >50MB, use chunked upload automatically
       if (actualSize > BOT_MAX_FILE_SIZE) {
@@ -470,7 +439,6 @@ export class StorageService {
       const detectedMime = mimeType || mime.lookup(key) || 'application/octet-stream';
       const fileName = key.split('/').pop() || key;
 
-      // Check storage quota
       const { data: userData } = await supabaseAdmin
         .from('telecloud_users')
         .select('storage_used, storage_limit')
@@ -480,7 +448,6 @@ export class StorageService {
         return { success: false, error: 'Storage quota exceeded' };
       }
 
-      // 1) Create file record
       const fileId = uuidv4();
       const { error: insertErr } = await supabaseAdmin.from('telecloud_files').insert({
         id: fileId, user_id: userId, bucket, key,
@@ -495,7 +462,6 @@ export class StorageService {
         return { success: false, error: 'Failed to initialize chunked upload' };
       }
 
-      // 2) Upload each chunk
       const uint8 = new Uint8Array(fileData);
       for (let i = 0; i < totalChunks; i++) {
         const start = i * chunkSize;
@@ -504,21 +470,18 @@ export class StorageService {
 
         const result = await this.uploadChunk(userId, bucket, fileId, i, totalChunks, chunkData, fileName);
         if (!result.success) {
-          // Cleanup on failure
           await supabaseAdmin.from('telecloud_file_chunks').delete().eq('file_id', fileId);
           await supabaseAdmin.from('telecloud_files').delete().eq('id', fileId);
           return { success: false, error: `Chunk ${i + 1}/${totalChunks} failed: ${result.error}` };
         }
       }
 
-      // 3) Update storage used
       if (userData) {
         await supabaseAdmin.from('telecloud_users')
           .update({ storage_used: userData.storage_used + fileSize })
           .eq('id', userId);
       }
 
-      // 4) Return the file record
       const { data: storedFile } = await supabaseAdmin
         .from('telecloud_files').select('*').eq('id', fileId).single();
 
@@ -542,7 +505,7 @@ export class StorageService {
     originalFileName: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const telegramConfig = await this.getTelegramClientForUser(userId, chunkData.byteLength);
+      const telegramConfig = await this.getTelegramClient(userId);
       if (!telegramConfig) {
         return { success: false, error: 'No Telegram bot configured. Set up in Settings.' };
       }
@@ -583,7 +546,7 @@ export class StorageService {
       const { data: chunks } = await supabaseAdmin
         .from('telecloud_file_chunks').select('*').eq('file_id', fileId).order('chunk_index', { ascending: true });
       if (!chunks || chunks.length === 0) return null;
-      const telegramConfig = await this.getTelegramClientForUser(userId, 0);
+      const telegramConfig = await this.getTelegramClient(userId);
       if (!telegramConfig) return null;
       const { client: telegram } = telegramConfig;
       const totalSize = chunks.reduce((sum: number, c: { chunk_size: number }) => sum + Number(c.chunk_size), 0);
@@ -608,7 +571,7 @@ export class StorageService {
       const { data: chunks } = await supabaseAdmin
         .from('telecloud_file_chunks').select('telegram_message_id').eq('file_id', fileId);
       if (chunks && chunks.length > 0) {
-        const telegramConfig = await this.getTelegramClientForUser(userId, 0);
+        const telegramConfig = await this.getTelegramClient(userId);
         if (telegramConfig) {
           for (const chunk of chunks) {
             try { await telegramConfig.client.deleteMessage(chunk.telegram_message_id); } catch { /* ignore */ }
@@ -633,7 +596,7 @@ export class StorageService {
       return { total: 0, synced: 0, failed: 0 };
     }
 
-    const telegramConfig = await this.getTelegramClientForUser(userId, 0);
+    const telegramConfig = await this.getTelegramClient(userId);
     if (!telegramConfig) {
       return { total: files.length, synced: 0, failed: files.length };
     }

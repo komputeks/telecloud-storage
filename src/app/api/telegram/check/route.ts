@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const hasUserBot = !!(userData?.telegram_bot_token && userData.telegram_chat_id);
+    const hasOwnBot = !!(userData?.telegram_bot_token && userData.telegram_chat_id);
 
     // Check if global bot is configured (env vars OR database settings)
     let globalToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -46,9 +46,9 @@ export async function GET(request: NextRequest) {
     const hasGlobalBot = !!(globalToken && globalToken.trim() !== '' && globalChatId && globalChatId.trim() !== '');
 
     return NextResponse.json({
-      hasUserBot,
+      hasUserBot: hasOwnBot,
       hasGlobalBot,
-      canUpload: hasUserBot || hasGlobalBot,
+      canUpload: hasOwnBot || hasGlobalBot,
     });
   } catch (error) {
     console.error('Check Telegram error:', error);
