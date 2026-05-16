@@ -27,3 +27,4 @@ dist-ssr
 .vercel
 vercel.json
 .next/
+fortune-forge/

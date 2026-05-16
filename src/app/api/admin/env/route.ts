@@ -4,7 +4,6 @@ import { supabaseAdmin } from '@/lib/supabase';
 // GET - Fetch environment variables
 export async function GET() {
   try {
-    // Try to get from settings table (stored in Supabase)
     const { data: settings, error } = await supabaseAdmin
       .from('settings')
       .select('*')
@@ -36,20 +35,25 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid data' }, { status: 400 });
     }
 
-    // Save each variable to settings table
     for (const variable of variables) {
       if (variable.key && variable.value !== undefined) {
+        // Delete existing row first, then insert (workaround for no unique constraint)
         await supabaseAdmin
           .from('settings')
-          .upsert({ 
-            key: variable.key, 
+          .delete()
+          .eq('key', variable.key);
+
+        await supabaseAdmin
+          .from('settings')
+          .insert({
+            key: variable.key,
             value: variable.value,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'key' });
+            updated_at: new Date().toISOString(),
+          });
       }
     }
 
-    return NextResponse.json({ success: true, message: 'Environment variables saved. Redeploy to apply changes.' });
+    return NextResponse.json({ success: true, message: 'Settings saved successfully.' });
   } catch (error) {
     console.error('Save env error:', error);
     return NextResponse.json({ error: 'Failed to save environment variables' }, { status: 500 });

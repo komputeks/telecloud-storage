@@ -8,31 +8,25 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const { data, error } = await supabase
-        .from('folders')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { category } = req.query;
+      let query = supabase.from('fortune_ideas').select('*').order('priority_score', { ascending: false });
+      if (category && category !== 'all') {
+        query = query.eq('category', category);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return res.status(200).json(data);
     }
-    if (req.method === 'POST') {
-      const { name } = req.body;
+    if (req.method === 'PUT') {
+      const { id, bookmarked } = req.body;
       const { data, error } = await supabase
-        .from('folders')
-        .insert({ name })
+        .from('fortune_ideas')
+        .update({ bookmarked })
+        .eq('id', id)
         .select()
         .single();
       if (error) throw error;
-      return res.status(201).json(data);
-    }
-    if (req.method === 'DELETE') {
-      const { id } = req.body;
-      const { error } = await supabase
-        .from('folders')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-      return res.status(200).json({ ok: true });
+      return res.status(200).json(data);
     }
     res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {

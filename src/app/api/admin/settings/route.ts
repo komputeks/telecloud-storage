@@ -49,11 +49,10 @@ export async function PUT(request: NextRequest) {
 
     const { settings } = await request.json();
 
-    // Update each setting
+    // Update each setting (delete + insert since no unique constraint on key)
     for (const [key, value] of Object.entries(settings)) {
-      await supabaseAdmin
-        .from('settings')
-        .upsert({ key, value: String(value) }, { onConflict: 'key' });
+      await supabaseAdmin.from('settings').delete().eq('key', key);
+      await supabaseAdmin.from('settings').insert({ key, value: String(value), updated_at: new Date().toISOString() });
     }
 
     return NextResponse.json({ success: true });

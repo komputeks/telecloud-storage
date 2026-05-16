@@ -8,26 +8,29 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const { data, error } = await supabase
-        .from('files')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { idea_id } = req.query;
+      let query = supabase.from('idea_notes').select('*').order('created_at', { ascending: false });
+      if (idea_id) query = query.eq('idea_id', parseInt(idea_id));
+      const { data, error } = await query;
       if (error) throw error;
       return res.status(200).json(data);
     }
-
+    if (req.method === 'POST') {
+      const { idea_id, content } = req.body;
+      const { data, error } = await supabase
+        .from('idea_notes')
+        .insert({ idea_id, content })
+        .select()
+        .single();
+      if (error) throw error;
+      return res.status(201).json(data);
+    }
     if (req.method === 'DELETE') {
-      const { id, storage_path } = req.body;
-      // Delete from storage
-      if (storage_path) {
-        await supabase.storage.from('telecloud').remove([storage_path]);
-      }
-      // Delete record
-      const { error } = await supabase.from('files').delete().eq('id', id);
+      const { id } = req.body;
+      const { error } = await supabase.from('idea_notes').delete().eq('id', id);
       if (error) throw error;
       return res.status(200).json({ ok: true });
     }
-
     res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('API error:', err);
