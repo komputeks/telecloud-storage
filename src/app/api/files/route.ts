@@ -276,6 +276,15 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'File not found' }, { status: 404 });
       }
       
+      // Delete from Telegram
+      const { data: userData } = await supabaseAdmin
+        .from('telecloud_users')
+        .select('telegram_bot_token')
+        .eq('id', user.id)
+        .single();
+
+      let botToken = userData?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+      
       if (!botToken) {
         const { data: settings } = await supabaseAdmin
           .from('settings')
@@ -284,14 +293,6 @@ export async function DELETE(request: NextRequest) {
           .single();
         botToken = settings?.value || '';
       }
-      // Delete from Telegram
-      const { data: userData } = await supabaseAdmin
-        .from('telecloud_users')
-        .select('telegram_bot_token')
-        .eq('id', user.id)
-        .single();
-
-      const botToken = userData?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
       
       if (botToken) {
         try {
