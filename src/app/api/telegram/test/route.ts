@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chat_id,
-          text: '✅ TeleCloud connection test successful! Your bot is ready to store files.',
+          text: '✅ TeleCloud connection test successful!\\n\\nYour bot is ready to store files.\\n👤 By: TeleCloud System',
         }),
       });
 

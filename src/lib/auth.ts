@@ -167,29 +167,73 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
   }
 }
 
-// Get user from token
+// Get user from token (supports JWT and API keys)
 export async function getUserFromToken(token: string): Promise<User | null> {
   try {
+    // Try JWT first
     const decoded = verifyToken(token);
-    if (!decoded) return null;
+    if (decoded) {
+      const { data: user } = await supabaseAdmin
+        .from('telecloud_users')
+        .select('*')
+        .eq('id', decoded.userId)
+        .maybeSingle();
 
-    const { data: user } = await supabaseAdmin
-      .from('telecloud_users')
-      .select('*')
-      .eq('id', decoded.userId)
-      .maybeSingle();
+      if (!user) return null;
 
-    if (!user) return null;
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        is_admin: user.is_admin,
+        storage_used: user.storage_used,
+        storage_limit: user.storage_limit,
+        created_at: user.created_at,
+      };
+    }
 
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      is_admin: user.is_admin,
-      storage_used: user.storage_used,
-      storage_limit: user.storage_limit,
-      created_at: user.created_at,
-    };
+    // Try API key (starts with tc_)
+    if (token.startsWith('tc_')) {
+      const { createHash } = await import('crypto');
+      const keyHash = createHash('sha256').update(token).digest('hex');
+      
+      const { data: apiKey } = await supabaseAdmin
+        .from('telecloud_api_keys')
+        .select('user_id, expires_at')
+        .eq('key_hash', keyHash)
+        .maybeSingle();
+
+      if (!apiKey) return null;
+      
+      // Check expiry
+      if (apiKey.expires_at && new Date(apiKey.expires_at) < new Date()) return null;
+
+      // Update last_used_at
+      await supabaseAdmin
+        .from('telecloud_api_keys')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('key_hash', keyHash);
+
+      const { data: user } = await supabaseAdmin
+        .from('telecloud_users')
+        .select('*')
+        .eq('id', apiKey.user_id)
+        .maybeSingle();
+
+      if (!user) return null;
+
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        is_admin: user.is_admin,
+        storage_used: user.storage_used,
+        storage_limit: user.storage_limit,
+        created_at: user.created_at,
+      };
+    }
+
+    return null;
   } catch {
     return null;
   }

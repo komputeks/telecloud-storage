@@ -7,7 +7,7 @@ import {
   Cloud, RefreshCw, X, Check, Copy, Image, Video, Music,
   Archive, FileText, Code, Edit,
   CheckSquare, Square, FolderPlus, Clock,
-  HardDrive, FileUp,
+  HardDrive, FileUp, Eye,
   Link2, FileSpreadsheet, Edit3, Move, Loader2, Package
 } from 'lucide-react';
 
@@ -690,7 +690,7 @@ export function FileManager() {
                 className="flex items-center gap-2 px-3 py-2 bg-[#6366f1] text-white rounded-xl text-sm font-medium"
               >
                 <CheckSquare className="w-4 h-4" />
-                {selectedFiles.size} selected
+                {selectedFiles.size} options
               </button>
             )}
             
@@ -740,7 +740,7 @@ export function FileManager() {
                 )}
               </button>
               <span className="text-sm text-gray-400">
-                {selectedFiles.size > 0 ? `${selectedFiles.size} selected` : 'Select all'}
+                {selectedFiles.size > 0 ? `${selectedFiles.size} options` : ''}
               </span>
               <span className="text-sm text-gray-500 ml-auto">{files.length} files</span>
             </div>
@@ -985,11 +985,45 @@ export function FileManager() {
             <code className="text-gray-400 text-xs block">vacation.jpg, https://example.com/img.jpg, Summer 2024</code>
           </div>
           
+          {/* Upload CSV file */}
+          <label className="flex items-center gap-3 p-3 bg-[#1e1e2e] hover:bg-[#27272a] rounded-xl cursor-pointer transition-colors border border-dashed border-[#27272a] hover:border-[#6366f1]">
+            <FileUp className="w-5 h-5 text-[#22c55e]" />
+            <div>
+              <p className="text-white text-sm font-medium">Upload CSV file</p>
+              <p className="text-gray-500 text-xs">Select a .csv file from your device</p>
+            </div>
+            <input
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    setCsvContent(ev.target?.result as string || '');
+                  };
+                  reader.readAsText(f);
+                }
+                e.target.value = '';
+              }}
+            />
+          </label>
+
+          <div className="relative">
+            <div className="absolute inset-x-0 top-0 flex items-center">
+              <div className="w-full border-t border-[#27272a]" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-2 bg-[#111118] text-gray-500">or paste CSV content</span>
+            </div>
+          </div>
+
           <textarea
             value={csvContent}
             onChange={(e) => setCsvContent(e.target.value)}
             rows={6}
-            placeholder="file1.jpg, https://example.com/file1.jpg, Description 1&#10;file2.pdf, https://example.com/file2.pdf, Description 2"
+            placeholder={"file1.jpg, https://example.com/file1.jpg, Description 1\nfile2.pdf, https://example.com/file2.pdf, Description 2"}
             className="w-full px-3 py-2.5 bg-[#1e1e2e] border border-[#27272a] rounded-xl text-white text-sm resize-none focus:outline-none focus:border-[#6366f1] font-mono"
           />
           
@@ -1082,8 +1116,13 @@ export function FileManager() {
             </div>
 
             <div className="flex gap-2">
-              <button onClick={() => handleDownload(editingFile)} className="flex-1 py-2.5 bg-[#6366f1] hover:bg-[#818cf8] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
-                <Download className="w-4 h-4" /> Download
+              <button onClick={() => {
+                setShowFileDetails(false);
+                setEditingFile(null);
+                // Open preview page
+                window.open(`/preview/${editingFile.id}`, '_blank');
+              }} className="flex-1 py-2.5 bg-[#6366f1] hover:bg-[#818cf8] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
+                <Eye className="w-4 h-4" /> Preview
               </button>
               <button onClick={() => { setShowFileDetails(false); setShowEditPopup(true); }} className="flex-1 py-2.5 bg-[#1e1e2e] hover:bg-[#27272a] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2">
                 <Edit className="w-4 h-4" /> Edit

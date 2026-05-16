@@ -316,8 +316,8 @@ export function AdminPanel() {
             </div>
           </div>
         ) : activeTab === 'users' ? (
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
-            <table className="w-full">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-x-auto">
+            <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-[var(--border)]">
                   <th className="text-left px-4 py-3 text-xs font-medium text-[var(--muted)] uppercase">User</th>

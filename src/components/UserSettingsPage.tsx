@@ -5,7 +5,8 @@ import { useAuth } from '@/components/AuthProvider';
 import { useTheme } from '@/lib/themes/ThemeProvider';
 import { 
   Settings, Bot, MessageSquare, Save, Loader2, Check, AlertCircle, 
-  Eye, EyeOff, HelpCircle, User, HardDrive, Sun, Moon, Monitor
+  Eye, EyeOff, HelpCircle, User, HardDrive, Sun, Moon, Monitor,
+  Key, Plus, Trash2, Copy, Shield
 } from 'lucide-react';
 
 interface UserSettings {
@@ -22,7 +23,7 @@ export function UserSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const [showToken, setShowToken] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'telegram' | 'storage' | 'appearance'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'telegram' | 'storage' | 'appearance' | 'api-keys'>('profile');
   const [hasGlobalBot, setHasGlobalBot] = useState(false);
   
   const [settings, setSettings] = useState<UserSettings>({
@@ -167,6 +168,7 @@ export function UserSettingsPage() {
             { id: 'profile', label: 'Profile', icon: User },
             { id: 'telegram', label: 'Telegram Bot', icon: Bot },
             { id: 'storage', label: 'Storage', icon: HardDrive },
+            { id: 'api-keys', label: 'API Keys', icon: Key },
             { id: 'appearance', label: 'Appearance', icon: Sun },
           ].map((tab) => (
             <button
@@ -365,6 +367,11 @@ export function UserSettingsPage() {
           </div>
         )}
 
+        {/* API Keys Tab */}
+        {activeTab === 'api-keys' && (
+          <ApiKeysTab />
+        )}
+
         {/* Appearance Tab */}
         {activeTab === 'appearance' && (
           <div className="space-y-6">
@@ -465,6 +472,206 @@ export function UserSettingsPage() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+// API Keys Tab Component
+function ApiKeysTab() {
+  const [keys, setKeys] = useState<Array<{
+    id: string; name: string; key_prefix: string; permissions: string;
+    last_used_at: string | null; expires_at: string | null; created_at: string;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyPerms, setNewKeyPerms] = useState('read,write,delete');
+  const [newKeyExpiry, setNewKeyExpiry] = useState('');
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const fetchKeys = async () => {
+    try {
+      const res = await fetch('/api/user/api-keys');
+      if (res.ok) {
+        const data = await res.json();
+        setKeys(data.keys || []);
+      }
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchKeys(); }, []);
+
+  const createKey = async () => {
+    if (!newKeyName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch('/api/user/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newKeyName,
+          permissions: newKeyPerms,
+          expires_in_days: newKeyExpiry ? parseInt(newKeyExpiry) : undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRevealedKey(data.key.full_key);
+        setNewKeyName('');
+        setNewKeyExpiry('');
+        fetchKeys();
+      }
+    } catch { /* ignore */ }
+    finally { setCreating(false); }
+  };
+
+  const revokeKey = async (keyId: string) => {
+    if (!confirm('Revoke this API key? This cannot be undone.')) return;
+    await fetch('/api/user/api-keys', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyId }),
+    });
+    fetchKeys();
+  };
+
+  const copyKey = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Info box */}
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2 flex items-center gap-2">
+          <Key className="w-5 h-5 text-[#6366f1]" />
+          API Keys
+        </h3>
+        <p className="text-sm text-[var(--muted)] mb-4">
+          Create API keys to access TeleCloud via S3-compatible API, webhooks, or programmatic access.
+          Pass the key as a Bearer token in the Authorization header.
+        </p>
+
+        {/* Revealed key alert */}
+        {revealedKey && (
+          <div className="mb-4 p-4 bg-[#22c55e]/10 border border-[#22c55e]/20 rounded-xl">
+            <p className="text-sm text-[#22c55e] font-medium mb-2 flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Save this key now — it will not be shown again!
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 p-2 bg-[var(--secondary)] rounded-lg text-xs text-[var(--foreground)] font-mono break-all">
+                {revealedKey}
+              </code>
+              <button onClick={() => copyKey(revealedKey)} className="p-2 rounded-lg bg-[var(--secondary)] hover:bg-[var(--border)] transition-colors flex-shrink-0">
+                {copied ? <Check className="w-4 h-4 text-[#22c55e]" /> : <Copy className="w-4 h-4 text-[var(--muted)]" />}
+              </button>
+            </div>
+            <button onClick={() => setRevealedKey(null)} className="mt-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)]">
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Create new key */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input
+              type="text"
+              placeholder="Key name (e.g., My App)"
+              value={newKeyName}
+              onChange={(e) => setNewKeyName(e.target.value)}
+              className="px-3 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] text-sm focus:outline-none focus:border-[#6366f1]"
+            />
+            <select
+              value={newKeyPerms}
+              onChange={(e) => setNewKeyPerms(e.target.value)}
+              className="px-3 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] text-sm focus:outline-none focus:border-[#6366f1]"
+            >
+              <option value="read,write,delete">Full Access</option>
+              <option value="read,write">Read & Write</option>
+              <option value="read">Read Only</option>
+            </select>
+            <select
+              value={newKeyExpiry}
+              onChange={(e) => setNewKeyExpiry(e.target.value)}
+              className="px-3 py-2.5 bg-[var(--secondary)] border border-[var(--border)] rounded-xl text-[var(--foreground)] text-sm focus:outline-none focus:border-[#6366f1]"
+            >
+              <option value="">Never expires</option>
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+              <option value="365">1 year</option>
+            </select>
+          </div>
+          <button
+            onClick={createKey}
+            disabled={!newKeyName.trim() || creating}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#6366f1] hover:bg-[#818cf8] text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Create API Key
+          </button>
+        </div>
+      </div>
+
+      {/* Keys list */}
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center"><Loader2 className="w-6 h-6 text-[#6366f1] animate-spin mx-auto" /></div>
+        ) : keys.length === 0 ? (
+          <div className="p-8 text-center text-[var(--muted)] text-sm">No API keys yet. Create one above.</div>
+        ) : (
+          <div className="divide-y divide-[var(--border)]">
+            {keys.map((k) => (
+              <div key={k.id} className="px-4 py-3 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[var(--foreground)] font-medium text-sm">{k.name}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-[var(--muted)]">
+                    <code className="bg-[var(--secondary)] px-1.5 py-0.5 rounded">{k.key_prefix}</code>
+                    <span>{k.permissions || 'full'}</span>
+                    {k.expires_at && (
+                      <span>Expires: {new Date(k.expires_at).toLocaleDateString()}</span>
+                    )}
+                    <span>Created: {new Date(k.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => revokeKey(k.id)}
+                  className="p-2 rounded-lg text-[var(--muted)] hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
+                  title="Revoke key"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Usage docs */}
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6">
+        <h4 className="text-sm font-semibold text-[var(--foreground)] mb-3">Usage Examples</h4>
+        <div className="space-y-3 text-xs font-mono">
+          <div className="p-3 bg-[var(--secondary)] rounded-lg">
+            <p className="text-[var(--muted)] mb-1"># S3-compatible upload</p>
+            <p className="text-[var(--foreground)]">curl -X PUT -H &quot;Authorization: Bearer tc_YOUR_KEY&quot; \\</p>
+            <p className="text-[var(--foreground)] pl-4">-T file.jpg {typeof window !== 'undefined' ? window.location.origin : ''}/api/s3/mybucket/file.jpg</p>
+          </div>
+          <div className="p-3 bg-[var(--secondary)] rounded-lg">
+            <p className="text-[var(--muted)] mb-1"># List files</p>
+            <p className="text-[var(--foreground)]">curl -H &quot;Authorization: Bearer tc_YOUR_KEY&quot; \\</p>
+            <p className="text-[var(--foreground)] pl-4">{typeof window !== 'undefined' ? window.location.origin : ''}/api/s3/mybucket/</p>
+          </div>
+          <div className="p-3 bg-[var(--secondary)] rounded-lg">
+            <p className="text-[var(--muted)] mb-1"># Webhook URL</p>
+            <p className="text-[var(--foreground)]">{typeof window !== 'undefined' ? window.location.origin : ''}/api/telegram/webhook</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

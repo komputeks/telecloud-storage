@@ -22,6 +22,11 @@ export async function POST(request: NextRequest) {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     const adminChatId = process.env.TELEGRAM_CHAT_ID;
     
+    // Extract author name from message
+    const authorName = message.from?.first_name 
+      ? `${message.from.first_name}${message.from.username ? ` (@${message.from.username})` : ''}`
+      : 'Unknown';
+    
     if (!botToken || !adminChatId) {
       return NextResponse.json({ error: 'Bot not configured' }, { status: 500 });
     }
@@ -96,7 +101,7 @@ export async function POST(request: NextRequest) {
         // Send confirmation message
         await telegram.request('sendMessage', {
           chat_id: adminChatId,
-          text: `✅ File uploaded successfully!\n\n📁 ${fileName}\n📊 Size: ${formatSize(doc.file_size || 0)}\n🪣 Bucket: default`,
+          text: `✅ File uploaded successfully!\n\n📁 ${fileName}\n📊 Size: ${formatSize(doc.file_size || 0)}\n🪣 Bucket: default\n👤 By: ${authorName}`,
           reply_to_message_id: message.message_id,
         });
       }
@@ -134,7 +139,7 @@ export async function POST(request: NextRequest) {
         
         await telegram.request('sendMessage', {
           chat_id: adminChatId,
-          text: `✅ Photo uploaded successfully!\n\n📁 ${fileName}\n🪣 Bucket: default`,
+          text: `✅ Photo uploaded successfully!\n\n📁 ${fileName}\n🪣 Bucket: default\n👤 By: ${authorName}`,
           reply_to_message_id: message.message_id,
         });
       }
@@ -172,7 +177,7 @@ export async function POST(request: NextRequest) {
         
         await telegram.request('sendMessage', {
           chat_id: adminChatId,
-          text: `✅ Video uploaded successfully!\n\n📁 ${fileName}\n📊 Size: ${formatSize(video.file_size || 0)}\n🪣 Bucket: default`,
+          text: `✅ Video uploaded successfully!\n\n📁 ${fileName}\n📊 Size: ${formatSize(video.file_size || 0)}\n🪣 Bucket: default\n👤 By: ${authorName}`,
           reply_to_message_id: message.message_id,
         });
       }
@@ -250,7 +255,7 @@ export async function POST(request: NextRequest) {
             // Send confirmation
             await telegram.request('sendMessage', {
               chat_id: adminChatId,
-              text: `✅ File uploaded from URL!\n\n📁 ${fileName}\n📊 Size: ${formatSize(contentLength || arrayBuffer.byteLength)}\n🪣 Bucket: default`,
+              text: `✅ File uploaded from URL!\n\n📁 ${fileName}\n📊 Size: ${formatSize(contentLength || arrayBuffer.byteLength)}\n🪣 Bucket: default\n👤 By: ${authorName}`,
             });
           }
         } catch (err) {

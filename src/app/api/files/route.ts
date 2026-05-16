@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromToken } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TelegramClient } from '@/lib/telegram';
+import { CaptionBuilder } from '@/lib/sync/caption-sync';
 
 export async function GET(request: NextRequest) {
   try {
@@ -149,10 +150,14 @@ export async function PUT(request: NextRequest) {
 
       if (botToken) {
         try {
-          const telegram = new TelegramClient(botToken, chatId);
-          const newCaption = `TeleCloud:${newBucket}:${newKey}`;
-          
-          // Edit message caption
+          const updatedMeta = {
+            ...currentFile,
+            bucket: newBucket,
+            key: newKey,
+            file_name: newKey.split('/').pop() || newKey,
+          };
+          const newCaption = CaptionBuilder.build(updatedMeta);
+
           await fetch(`https://api.telegram.org/bot${botToken}/editMessageCaption`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -164,7 +169,6 @@ export async function PUT(request: NextRequest) {
           });
         } catch (telegramError) {
           console.error('Failed to update Telegram caption:', telegramError);
-          // Continue even if Telegram update fails
         }
       }
     }
