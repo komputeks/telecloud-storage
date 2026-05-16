@@ -52,52 +52,75 @@ export class StorageService {
     userId: string, 
     fileSize: number
   ): Promise<{ client: TelegramClient; chatId: string; isUserbot: boolean } | null> {
-    const { data: user } = await supabaseAdmin
-      .from('telecloud_users')
-      .select('telegram_bot_token, telegram_chat_id, telegram_api_id, telegram_api_hash, telegram_phone, telegram_use_userbot')
-      .eq('id', userId)
-      .single();
-
-    // For files <=50MB (or chunked pieces), use bot API (user's own or global fallback)
-    // For files >50MB sent as single upload, this would need userbot (MTProto)
-    // But since we now use chunked uploads for >50MB, each chunk is <50MB and uses bot API
-
-    // 1) Try user's own bot first
-    if (user?.telegram_bot_token && user?.telegram_chat_id) {
-      return {
-        client: new TelegramClient(user.telegram_bot_token, user.telegram_chat_id),
-        chatId: user.telegram_chat_id,
-        isUserbot: false,
-      };
-    }
-
-    // Try to get global bot from environment first
-    let globalToken = process.env.TELEGRAM_BOT_TOKEN;
-    let globalChatId = process.env.TELEGRAM_CHAT_ID;
-
-    // Fallback to database settings (admin panel) - ALWAYS check
     try {
-      const { data: settings } = await supabaseAdmin
-        .from('settings')
-        .select('key, value')
-        .in('key', ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']);
-      
-      const settingsMap = new Map(settings?.map(s => [s.key, s.value]) || []);
-      if (!globalToken) globalToken = settingsMap.get('TELEGRAM_BOT_TOKEN') || '';
-      if (!globalChatId) globalChatId = settingsMap.get('TELEGRAM_CHAT_ID') || '';
-    } catch (e) {
-      console.error('Failed to fetch global bot settings:', e);
-    }
+      const { data: user } = await supabaseAdmin
+        .from('telecloud_users')
+        .select('telegram_bot_token, telegram_chat_id, telegram_api_id, telegram_api_hash, telegram_phone, telegram_use_userbot')
+        .eq('id', userId)
+        .single();
 
-    if (globalToken && globalChatId) {
-      return {
-        client: new TelegramClient(globalToken, globalChatId),
-        chatId: globalChatId,
-        isUserbot: false,
-      };
-    }
+      // 1) Try user's own bot first — BOTH token AND chat_id must be non-empty strings
+      if (user?.telegram_bot_token && user.telegram_bot_token.trim() && user?.telegram_chat_id && user.telegram_chat_id.trim()) {
+        console.log(`[storage] Using user's own bot for user ${userId}`);
+        return {
+          client: new TelegramClient(user.telegram_bot_token.trim(), user.telegram_chat_id.trim()),
+          chatId: user.telegram_chat_id.trim(),
+          isUserbot: false,
+        };
+      }
 
-    return null;
+      // 2) Try global bot — first from env, then from DB settings
+      let globalToken = process.env.TELEGRAM_BOT_TOKEN || '';
+      let globalChatId = process.env.TELEGRAM_CHAT_ID || '';
+
+      // Always check DB settings as fallback/override
+      try {
+        const { data: settings, error: settingsErr } = await supabaseAdmin
+          .from('settings')
+          .select('key, value')
+          .in('key', ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']);
+        
+        if (settingsErr) {
+          console.error('[storage] Failed to fetch settings:', settingsErr.message);
+        } else if (settings && settings.length > 0) {
+          for (const s of settings) {
+            if (s.key === 'TELEGRAM_BOT_TOKEN' && s.value && s.value.trim()) {
+              globalToken = s.value.trim();
+            }
+            if (s.key === 'TELEGRAM_CHAT_ID' && s.value && s.value.trim()) {
+              globalChatId = s.value.trim();
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[storage] Exception fetching global bot settings:', e);
+      }
+
+      if (globalToken && globalChatId) {
+        console.log(`[storage] Using global bot for user ${userId}`);
+        return {
+          client: new TelegramClient(globalToken, globalChatId),
+          chatId: globalChatId,
+          isUserbot: false,
+        };
+      }
+
+      // 3) Last resort: if user has a chat_id but no bot token, use global token with user's chat_id
+      if (user?.telegram_chat_id && user.telegram_chat_id.trim() && globalToken) {
+        console.log(`[storage] Using global bot token with user's chat_id for user ${userId}`);
+        return {
+          client: new TelegramClient(globalToken, user.telegram_chat_id.trim()),
+          chatId: user.telegram_chat_id.trim(),
+          isUserbot: false,
+        };
+      }
+
+      console.error(`[storage] No Telegram config found for user ${userId}. globalToken=${!!globalToken}, globalChatId=${!!globalChatId}, userToken=${!!user?.telegram_bot_token}, userChatId=${!!user?.telegram_chat_id}`);
+      return null;
+    } catch (error) {
+      console.error('[storage] getTelegramClientForUser error:', error);
+      return null;
+    }
   }
 
   /**

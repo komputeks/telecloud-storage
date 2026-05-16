@@ -61,6 +61,10 @@ export class TelegramClient {
     mimeType: string,
     caption?: string
   ): Promise<TelegramMessage> {
+    if (!this.botToken || !this.chatId) {
+      throw new Error('Telegram bot token or chat ID is not configured. Please set up in Settings or contact admin.');
+    }
+
     const formData = new FormData();
     formData.append('chat_id', this.chatId);
     formData.append('document', new Blob([file], { type: mimeType }), filename);
@@ -73,7 +77,14 @@ export class TelegramClient {
     const data: TelegramResponse<TelegramMessage> = await response.json();
 
     if (!data.ok) {
-      throw new Error(`Failed to send document: ${data.description}`);
+      const errMsg = data.description || 'Unknown error';
+      if (data.error_code === 401) {
+        throw new Error(`Telegram bot token is invalid or revoked. Please update in Settings. (${errMsg})`);
+      }
+      if (data.error_code === 400 && errMsg.includes('chat not found')) {
+        throw new Error(`Telegram chat ID is invalid. Please update in Settings. (${errMsg})`);
+      }
+      throw new Error(`Failed to send document: ${errMsg}`);
     }
 
     return data.result!;
@@ -85,6 +96,10 @@ export class TelegramClient {
     filename: string,
     caption?: string
   ): Promise<TelegramMessage> {
+    if (!this.botToken || !this.chatId) {
+      throw new Error('Telegram bot token or chat ID is not configured.');
+    }
+
     const formData = new FormData();
     formData.append('chat_id', this.chatId);
     formData.append('photo', new Blob([file], { type: 'image/jpeg' }), filename);
@@ -97,7 +112,11 @@ export class TelegramClient {
     const data: TelegramResponse<TelegramMessage> = await response.json();
 
     if (!data.ok) {
-      throw new Error(`Failed to send photo: ${data.description}`);
+      const errMsg = data.description || 'Unknown error';
+      if (data.error_code === 401) {
+        throw new Error(`Telegram bot token is invalid. Please update in Settings. (${errMsg})`);
+      }
+      throw new Error(`Failed to send photo: ${errMsg}`);
     }
 
     return data.result!;
@@ -109,6 +128,10 @@ export class TelegramClient {
     filename: string,
     caption?: string
   ): Promise<TelegramMessage> {
+    if (!this.botToken || !this.chatId) {
+      throw new Error('Telegram bot token or chat ID is not configured.');
+    }
+
     const formData = new FormData();
     formData.append('chat_id', this.chatId);
     formData.append('video', new Blob([file], { type: 'video/mp4' }), filename);
@@ -121,7 +144,11 @@ export class TelegramClient {
     const data: TelegramResponse<TelegramMessage> = await response.json();
 
     if (!data.ok) {
-      throw new Error(`Failed to send video: ${data.description}`);
+      const errMsg = data.description || 'Unknown error';
+      if (data.error_code === 401) {
+        throw new Error(`Telegram bot token is invalid. Please update in Settings. (${errMsg})`);
+      }
+      throw new Error(`Failed to send video: ${errMsg}`);
     }
 
     return data.result!;
