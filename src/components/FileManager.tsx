@@ -157,44 +157,71 @@ export function FileManager() {
     fetchFiles();
   }, [fetchFiles]);
 
-  // Multi-file upload handler
+  // ── Chunked upload constants & helper ──
+  const CHUNK_SIZE = 49 * 1024 * 1024; // 49 MB per chunk
+  const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2 GB absolute max
+
+  const uploadFileChunked = async (file: File, bucket: string): Promise<boolean> => {
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    // 1) Init
+    const initRes = await fetch('/api/files/init-chunked', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bucket, key: file.name, file_name: file.name, size: file.size, mime_type: file.type || 'application/octet-stream', total_chunks: totalChunks }),
+    });
+    const initData = await initRes.json();
+    if (!initRes.ok) { alert(`❌ ${file.name}: ${initData.error}`); return false; }
+    const fileId = initData.file_id;
+    // 2) Upload each chunk
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      setUploadProgress({ current: i + 1, total: totalChunks, file: `${file.name} — chunk ${i + 1}/${totalChunks} (${Math.round(end / 1024 / 1024)}MB)` });
+      const form = new FormData();
+      form.append('chunk', file.slice(start, end), `${file.name}.part${i}`);
+      form.append('file_id', fileId);
+      form.append('chunk_index', String(i));
+      form.append('total_chunks', String(totalChunks));
+      form.append('bucket', bucket);
+      form.append('file_name', file.name);
+      const res = await fetch('/api/files/upload-chunk', { method: 'POST', body: form });
+      if (!res.ok) { const d = await res.json(); alert(`❌ ${file.name} chunk ${i + 1}: ${d.error}`); return false; }
+    }
+    // 3) Finalize
+    const finRes = await fetch('/api/files/finalize-chunked', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file_id: fileId }) });
+    if (!finRes.ok) { const d = await finRes.json(); alert(`❌ ${file.name}: ${d.error}`); return false; }
+    return true;
+  };
+
+  // Multi-file upload handler (auto-selects chunked vs direct)
   const handleMultiFileUpload = async () => {
     if (uploadFiles.length === 0) return;
-    
     setUploading(true);
     const total = uploadFiles.length;
-    
     for (let i = 0; i < uploadFiles.length; i++) {
       const file = uploadFiles[i];
-      setUploadProgress({ current: i + 1, total, file: file.name });
-      
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('bucket', currentBucket);
-      formData.append('key', file.name);
-
-      try {
-        const res = await fetch('/api/files/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const data = await res.json();
-        
-        if (!res.ok) {
-          console.error(`Failed to upload ${file.name}:`, data.error);
-          if (data.needsUserbot) {
-            alert(`❌ ${file.name}: ${data.error}\n\nGo to Settings → Telegram to configure Userbot for files over 50MB.`);
-          } else {
-            alert(`❌ ${file.name}: ${data.error}`);
-          }
+      if (file.size > MAX_FILE_SIZE) { alert(`❌ ${file.name}: Exceeds 2 GB limit.`); continue; }
+      if (file.size > CHUNK_SIZE) {
+        // Large file → chunked
+        setUploadProgress({ current: i + 1, total, file: `${file.name} (preparing chunks…)` });
+        await uploadFileChunked(file, currentBucket);
+      } else {
+        // Small file → direct
+        setUploadProgress({ current: i + 1, total, file: file.name });
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', currentBucket);
+        formData.append('key', file.name);
+        try {
+          const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (!res.ok) { alert(`❌ ${file.name}: ${data.error}`); }
+        } catch (error) {
+          console.error(`Upload failed for ${file.name}:`, error);
+          alert(`❌ ${file.name}: Upload failed`);
         }
-      } catch (error) {
-        console.error(`Upload failed for ${file.name}:`, error);
-        alert(`❌ ${file.name}: Upload failed`);
       }
     }
-
     await fetchFiles();
     await refreshUser();
     setShowUploadPopup(false);
@@ -358,7 +385,15 @@ export function FileManager() {
     try {
       const res = await fetch(`/api/files/download?bucket=${currentBucket}&key=${file.key}`);
       const data = await res.json();
-      if (data.url) {
+      if (data.chunked) {
+        // Chunked file → stream download
+        const a = document.createElement('a');
+        a.href = data.stream_url;
+        a.download = data.file?.name || file.file_name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else if (data.url) {
         window.open(data.url, '_blank');
       }
     } catch (error) {
@@ -891,7 +926,7 @@ export function FileManager() {
               <div className="text-center">
                 <Upload className="w-8 h-8 text-gray-500 mx-auto mb-2" />
                 <p className="text-gray-400 text-sm">Click to upload</p>
-                <p className="text-gray-500 text-xs">Multiple files supported • Max 50MB each</p>
+                <p className="text-gray-500 text-xs">Multiple files supported • Up to 2 GB each</p>
               </div>
             )}
             <input 

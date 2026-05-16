@@ -139,26 +139,12 @@ export class StorageService {
         };
       }
 
-      // For files >50MB, check if userbot is needed
+      // For files >49MB, tell the client to use chunked upload instead
       if (fileSize > BOT_MAX_FILE_SIZE) {
-        const { data: user } = await supabaseAdmin
-          .from('telecloud_users')
-          .select('telegram_api_id, telegram_api_hash, telegram_phone')
-          .eq('id', userId)
-          .single();
-
-        if (!user?.telegram_api_id || !user?.telegram_api_hash) {
-          return { 
-            success: false, 
-            error: `File size (${(fileSize / 1024 / 1024).toFixed(1)}MB) exceeds 50MB bot limit. Please configure your Telegram Userbot in Settings to upload files up to 2GB.`,
-            needsUserbot: true 
-          };
-        }
-        
-        // Userbot not fully implemented yet - return helpful error
         return { 
           success: false, 
-          error: `Files over 50MB require Userbot (currently in development). Please upload files under 50MB for now.` 
+          error: `USE_CHUNKED_UPLOAD`,
+          needsUserbot: false 
         };
       }
 
@@ -353,11 +339,13 @@ export class StorageService {
 
       if (!file) return false;
 
-      const telegramConfig = await this.getTelegramClientForUser(userId, 0);
-      
-      if (telegramConfig) {
-        const { client: telegram } = telegramConfig;
-        await telegram.deleteMessage(file.telegram_message_id);
+      if (this.isChunkedFile(file)) {
+        await this.deleteChunkedFile(userId, file.id);
+      } else {
+        const telegramConfig = await this.getTelegramClientForUser(userId, 0);
+        if (telegramConfig) {
+          try { await telegramConfig.client.deleteMessage(file.telegram_message_id); } catch { /* ignore */ }
+        }
       }
 
       await supabaseAdmin.from('telecloud_files').delete().eq('id', file.id);
@@ -473,6 +461,97 @@ export class StorageService {
       console.error('URL upload error:', error);
       return { success: false, error: 'Failed to upload from URL' };
     }
+  }
+
+  /**
+   * Upload a single chunk to Telegram and record it in telecloud_file_chunks.
+   */
+  async uploadChunk(
+    userId: string,
+    bucket: string,
+    fileId: string,
+    chunkIndex: number,
+    totalChunks: number,
+    chunkData: ArrayBuffer,
+    originalFileName: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const telegramConfig = await this.getTelegramClientForUser(userId, chunkData.byteLength);
+      if (!telegramConfig) {
+        return { success: false, error: 'No Telegram bot configured. Set up in Settings.' };
+      }
+      const { client: telegram, chatId } = telegramConfig;
+      const chunkName = `${originalFileName}.part${String(chunkIndex).padStart(4, '0')}of${totalChunks}`;
+      const caption = `\ud83d\udce6 Chunk ${chunkIndex + 1}/${totalChunks} of "${originalFileName}"`;
+      const message = await telegram.sendDocument(chunkData, chunkName, 'application/octet-stream', caption);
+      const document = message.document;
+      if (!document) return { success: false, error: 'Telegram did not return file info for chunk' };
+      const { error } = await supabaseAdmin.from('telecloud_file_chunks').insert({
+        file_id: fileId,
+        chunk_index: chunkIndex,
+        total_chunks: totalChunks,
+        chunk_size: chunkData.byteLength,
+        telegram_file_id: document.file_id,
+        telegram_message_id: message.message_id,
+        telegram_chat_id: chatId,
+      });
+      if (error) {
+        try { await telegram.deleteMessage(message.message_id); } catch { /* ignore */ }
+        return { success: false, error: `DB error: ${error.message}` };
+      }
+      return { success: true };
+    } catch (error) {
+      console.error(`Chunk ${chunkIndex} upload error:`, error);
+      return { success: false, error: error instanceof Error ? error.message : 'Chunk upload failed' };
+    }
+  }
+
+  /** Check if a file is chunked */
+  isChunkedFile(file: StoredFile): boolean {
+    return file.telegram_file_id?.startsWith('chunked:') || (file.custom_metadata as Record<string, unknown>)?.is_chunked === true;
+  }
+
+  /** Download a chunked file by fetching all chunks from Telegram and streaming. */
+  async downloadChunkedFile(userId: string, fileId: string): Promise<{ stream: ReadableStream<Uint8Array>; size: number } | null> {
+    try {
+      const { data: chunks } = await supabaseAdmin
+        .from('telecloud_file_chunks').select('*').eq('file_id', fileId).order('chunk_index', { ascending: true });
+      if (!chunks || chunks.length === 0) return null;
+      const telegramConfig = await this.getTelegramClientForUser(userId, 0);
+      if (!telegramConfig) return null;
+      const { client: telegram } = telegramConfig;
+      const totalSize = chunks.reduce((sum: number, c: { chunk_size: number }) => sum + Number(c.chunk_size), 0);
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          try {
+            for (const chunk of chunks) {
+              const { data } = await telegram.downloadFile(chunk.telegram_file_id);
+              controller.enqueue(new Uint8Array(data));
+            }
+            controller.close();
+          } catch (err) { controller.error(err); }
+        },
+      });
+      return { stream, size: totalSize };
+    } catch (error) { console.error('Chunked download error:', error); return null; }
+  }
+
+  /** Delete a chunked file (all Telegram messages + DB records) */
+  async deleteChunkedFile(userId: string, fileId: string): Promise<boolean> {
+    try {
+      const { data: chunks } = await supabaseAdmin
+        .from('telecloud_file_chunks').select('telegram_message_id').eq('file_id', fileId);
+      if (chunks && chunks.length > 0) {
+        const telegramConfig = await this.getTelegramClientForUser(userId, 0);
+        if (telegramConfig) {
+          for (const chunk of chunks) {
+            try { await telegramConfig.client.deleteMessage(chunk.telegram_message_id); } catch { /* ignore */ }
+          }
+        }
+      }
+      await supabaseAdmin.from('telecloud_file_chunks').delete().eq('file_id', fileId);
+      return true;
+    } catch (error) { console.error('Delete chunked file error:', error); return false; }
   }
 
   /**

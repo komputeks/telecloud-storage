@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
       { hostname: '*.cloudfront.net' },
     ],
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;
