@@ -15,6 +15,7 @@ interface User {
   is_admin: boolean;
   storage_used: number;
   storage_limit: number;
+  is_upgraded: boolean;
   created_at: string;
 }
 
@@ -44,7 +45,7 @@ export function AdminPanel() {
   const [settings, setSettings] = useState({
     site_name: 'TeleCloud Storage',
     max_file_size: '52428800',
-    default_storage_limit: '10737418240',
+    default_storage_limit: '52428800',
     allow_registration: 'true',
   });
 

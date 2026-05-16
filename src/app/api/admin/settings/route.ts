@@ -14,7 +14,7 @@ export async function GET() {
         settings: {
           site_name: 'TeleCloud Storage',
           max_file_size: 52428800,
-          default_storage_limit: 10737418240,
+          default_storage_limit: 52428800,
           allow_registration: true,
           require_email_verification: false,
         },

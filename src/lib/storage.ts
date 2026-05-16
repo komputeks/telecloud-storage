@@ -159,8 +159,9 @@ export class StorageService {
         .eq('id', userId)
         .single();
 
-      if (userData && userData.storage_used + fileSize > userData.storage_limit) {
-        return { success: false, error: 'Storage quota exceeded' };
+      // storage_limit === 0 means unlimited (upgraded users with own bot)
+      if (userData && userData.storage_limit > 0 && userData.storage_used + fileSize > userData.storage_limit) {
+        return { success: false, error: 'Storage quota exceeded. Upgrade your account for unlimited storage.' };
       }
 
       const detectedMime = mimeType || mime.lookup(key) || 'application/octet-stream';

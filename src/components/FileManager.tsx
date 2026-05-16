@@ -551,7 +551,7 @@ export function FileManager() {
     file.file_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const storagePercent = user ? (user.storage_used / user.storage_limit) * 100 : 0;
+  const storagePercent = user ? (user.storage_limit > 0 ? (user.storage_used / user.storage_limit) * 100 : 1) : 0;
 
   // Group files by date
   const groupedFiles = filteredFiles.reduce((acc, file) => {
@@ -584,7 +584,10 @@ export function FileManager() {
                 <div className="w-20 h-1.5 bg-[#27272a] rounded-full overflow-hidden">
                   <div className="h-full bg-gradient-to-r from-[#6366f1] to-[#22d3ee] rounded-full" style={{ width: `${Math.min(storagePercent, 100)}%` }} />
                 </div>
-                <span className="text-xs text-gray-400">{formatSize(user?.storage_used || 0)}</span>
+                <span className="text-xs text-gray-400">
+                  {formatSize(user?.storage_used || 0)}
+                  {user?.storage_limit === 0 ? ' / ∞' : ` / ${formatSize(user?.storage_limit || 0)}`}
+                </span>
               </div>
             </div>
           </div>

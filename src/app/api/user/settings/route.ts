@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromToken } from '@/lib/auth';
+import { getUserFromToken, STORAGE_LIMIT_FREE, STORAGE_LIMIT_UPGRADED } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-
-const STORAGE_LIMIT_WITH_BOT = 107374182400; // 100GB
-const STORAGE_LIMIT_WITHOUT_BOT = 10737418240; // 10GB
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const { data: userData, error } = await supabaseAdmin
       .from('telecloud_users')
-      .select('id, email, name, telegram_bot_token, telegram_chat_id, storage_used, storage_limit, created_at')
+      .select('id, email, name, telegram_bot_token, telegram_chat_id, storage_used, storage_limit, is_upgraded, created_at')
       .eq('id', user.id)
       .single();
 
@@ -63,9 +60,17 @@ export async function PUT(request: NextRequest) {
     // Get current user data
     const { data: currentUser } = await supabaseAdmin
       .from('telecloud_users')
-      .select('telegram_bot_token, telegram_chat_id, storage_limit')
+      .select('telegram_bot_token, telegram_chat_id, storage_limit, is_upgraded')
       .eq('id', user.id)
       .single();
+
+    // User must be upgraded to configure bot
+    if ((telegram_bot_token || telegram_chat_id) && !currentUser?.is_upgraded) {
+      return NextResponse.json(
+        { error: 'Please upgrade your account to configure your own Telegram bot' },
+        { status: 403 }
+      );
+    }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
@@ -84,17 +89,18 @@ export async function PUT(request: NextRequest) {
     const newChatId = updates.telegram_chat_id !== undefined ? updates.telegram_chat_id : currentUser?.telegram_chat_id;
     const willHaveBot = !!(newBotToken && newChatId);
 
-    if (!hadBot && willHaveBot) {
-      updates.storage_limit = STORAGE_LIMIT_WITH_BOT;
-    } else if (hadBot && !willHaveBot) {
-      updates.storage_limit = STORAGE_LIMIT_WITHOUT_BOT;
+    // Upgraded users with own bot get unlimited storage
+    if (currentUser?.is_upgraded && willHaveBot) {
+      updates.storage_limit = STORAGE_LIMIT_UPGRADED; // 0 = unlimited
+    } else if (!willHaveBot && !currentUser?.is_upgraded) {
+      updates.storage_limit = STORAGE_LIMIT_FREE;
     }
 
     const { data: updatedUser, error } = await supabaseAdmin
       .from('telecloud_users')
       .update(updates)
       .eq('id', user.id)
-      .select('id, email, name, storage_used, storage_limit, created_at')
+      .select('id, email, name, storage_used, storage_limit, is_upgraded, created_at')
       .single();
 
     if (error) {

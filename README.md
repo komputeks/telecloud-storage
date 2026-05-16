@@ -1,115 +1,53 @@
-# TeleCloud Storage
+# ☁️ TeleCloud Storage
 
-**Live Demo**: [https://telecloud-storage.vercel.app](https://telecloud-storage.vercel.app)
+**Cloud storage powered by Telegram** — S3-compatible API, web file manager, and unlimited storage for premium users.
 
-Free unlimited S3-compatible storage using Telegram as backend.
+![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js) ![Tailwind](https://img.shields.io/badge/Tailwind-v4-38bdf8?style=flat-square&logo=tailwindcss) ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript) ![Supabase](https://img.shields.io/badge/Supabase-Postgres-3ecf8e?style=flat-square&logo=supabase)
 
 ## Features
 
-- **Unlimited Storage**: Store unlimited files using Telegram as your backend
-- **S3-Compatible API**: Use your existing S3 tools and SDKs
-- **Web GUI**: Modern, responsive file management interface
-- **URL Upload**: Upload files directly from URLs
-- **Multi-user Support**: SaaS-ready with user authentication
-- **Admin Panel**: Manage users and settings
-- **Light/Dark Mode**: Follows system preference with manual toggle
-- **User Telegram Bots**: Each user can configure their own Telegram bot for 100GB storage
-
-## Architecture & Portability
-
-### Vercel Dependency
-
-**How much does this system depend on Vercel?**
-- **Minimal dependency**: The app uses standard Next.js features that work anywhere
-- **API Routes**: Can be deployed to any Node.js server, Netlify Functions, or Cloudflare Workers
-- **Database**: Uses Supabase (independent of Vercel)
-- **Storage**: Uses Telegram (independent of Vercel)
-
-**What if Vercel closes or increases prices?**
-- The code is 100% portable to:
-  - **Netlify**: Change `vercel.json` to `netlify.toml`
-  - **GitHub Pages**: Use `next export` for static export (requires API backend elsewhere)
-  - **Cloudflare Pages/Workers**: Deploy with minimal changes
-  - **Self-hosted**: Deploy to any VPS with `npm run build && npm start`
-  - **Railway/Render/Fly.io**: Direct deployment supported
-
-### Environment Variables
-
-**Recommended approach:**
-1. Store secrets in **GitHub Secrets** (for CI/CD)
-2. Mirror to **Vercel Environment Variables** via CLI or dashboard
-3. Use `.env.example` for documentation
-
-```bash
-# .env.example
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-JWT_SECRET=your-jwt-secret
-TELEGRAM_BOT_TOKEN=your-bot-token (optional, for global fallback)
-TELEGRAM_CHAT_ID=your-chat-id (optional, for global fallback)
-```
-
-### Deployment Options
-
-#### 1. Vercel (Recommended)
-```bash
-vercel deploy
-```
-
-#### 2. Netlify
-```toml
-# netlify.toml
-[build]
-  command = "npm run build"
-  publish = ".next"
-
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-```
-
-#### 3. Docker / Self-hosted
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-#### 4. Static Export (for GitHub Pages)
-```bash
-# Add to next.config.ts
-output: 'export'
-
-# Build
-npm run build
-# Output in 'out' directory
-```
-
-Note: Static export requires moving API routes to a separate backend service.
+- **50MB Free Storage** — Get started instantly, no credit card required
+- **Unlimited Storage (Premium)** — Upgrade and connect your own Telegram bot for unlimited storage
+- **S3-Compatible API** — Works with rclone, AWS CLI, and any S3-compatible tool
+- **Web File Manager** — Upload, download, preview, and organize files in the browser
+- **Bucket Management** — Create and manage storage buckets
+- **API Key Management** — Generate API keys with granular permissions and expiry
+- **Telegram Bot Integration** — Files stored securely on Telegram servers
+- **URL Upload** — Upload files directly from URLs
+- **File Preview** — Preview images, videos, and documents in the browser
+- **Dark/Light Theme** — System-aware theme with manual override
+- **Admin Panel** — User management, environment config, and system settings
 
 ## Tech Stack
 
-- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4
-- **Backend**: Next.js API Routes
-- **Database**: Supabase (PostgreSQL)
-- **Storage**: Telegram Bot API
-- **Deployment**: Vercel (portable to others)
+- **Framework:** Next.js 15 (App Router)
+- **Language:** TypeScript 5
+- **Styling:** Tailwind CSS v4
+- **Database:** Supabase (PostgreSQL)
+- **Storage Backend:** Telegram Bot API
+- **Auth:** Custom JWT + bcrypt
+- **Deployment:** Vercel
+
+## Pricing
+
+| Feature | Free | Premium |
+|---------|------|---------|
+| Storage | 50MB | Unlimited |
+| Telegram Bot | Shared | Your own private bot |
+| S3 API | ✅ | ✅ |
+| Web UI | ✅ | ✅ |
+| API Keys | ✅ | ✅ |
+| Priority Support | ❌ | ✅ |
+
+Premium upgrade via M-Pesa (Lipia) — coming soon.
 
 ## Getting Started
 
 ### Prerequisites
 
-1. Create a Telegram Bot via [@BotFather](https://t.me/botfather)
-2. Get your bot token
-3. Create a channel/group and add your bot
-4. Get the chat ID using [@userinfobot](https://t.me/userinfobot)
+- Node.js 18+
+- A [Supabase](https://supabase.com) project
+- A Telegram Bot (create via [@BotFather](https://t.me/BotFather))
 
 ### Installation
 
@@ -121,121 +59,72 @@ cd telecloud-storage
 # Install dependencies
 npm install
 
-# Copy environment variables
-cp .env.example .env
-# Edit .env with your values
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your credentials
 
-# Run development server
+# Run the development server
 npm run dev
 ```
 
-### Production Build
+### Environment Variables
 
-```bash
-npm run build
-npm start
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+JWT_SECRET=your_jwt_secret
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
 ```
 
-## S3 API Usage
+### Database Tables
 
-Configure your S3 client to use the TeleCloud endpoint:
+The app uses the following Supabase tables (all prefixed with `telecloud_`):
 
-### rclone
+- `telecloud_users` — User accounts with storage limits
+- `telecloud_files` — File metadata and Telegram message IDs
+- `telecloud_api_keys` — API key management
+- `telecloud_metadata_changes` — File metadata change tracking
+
+## API Usage
+
+```bash
+# Upload a file
+curl -X PUT \
+  -H "Authorization: Bearer tc_YOUR_KEY" \
+  -T myfile.txt \
+  https://your-domain.com/api/s3/mybucket/myfile.txt
+
+# List files
+curl -H "Authorization: Bearer tc_YOUR_KEY" \
+  https://your-domain.com/api/s3/mybucket/
+
+# Download a file
+curl -H "Authorization: Bearer tc_YOUR_KEY" \
+  https://your-domain.com/api/s3/mybucket/myfile.txt
+```
+
+### rclone Configuration
 
 ```bash
 rclone config create telecloud s3 \
   provider=Other \
   endpoint=https://your-domain.com/api/s3 \
   access_key_id=your-email \
-  secret_access_key=your-token
-
-rclone copy myfile.txt telecloud:my-bucket/
+  secret_access_key=your-api-key
 ```
 
-### AWS SDK (JavaScript)
+## Deployment
 
-```javascript
-const S3 = require('aws-sdk/clients/s3');
+Deploy to Vercel:
 
-const s3 = new S3({
-  endpoint: 'https://your-domain.com/api/s3',
-  accessKeyId: 'your-email',
-  secretAccessKey: 'your-token',
-  s3ForcePathStyle: true,
-});
-
-await s3.putObject({
-  Bucket: 'my-bucket',
-  Key: 'myfile.txt',
-  Body: 'Hello World',
-}).promise();
+```bash
+vercel --prod
 ```
 
-## Storage Tiers
-
-| Tier | Storage | Requirements |
-|------|---------|--------------|
-| Free (Shared) | 10 GB | Uses site-wide Telegram bot |
-| Free (Personal) | 100 GB | Configure your own Telegram bot |
-| Premium | Unlimited | Coming soon |
-
-## API Endpoints
-
-### Authentication
-
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-- `POST /api/auth/logout` - Logout user
-- `GET /api/auth/me` - Get current user
-
-### Files
-
-- `GET /api/files` - List files
-- `POST /api/files/upload` - Upload file
-- `GET /api/files/download` - Download file
-- `DELETE /api/files` - Delete file
-
-### S3-Compatible API
-
-- `GET /api/s3/{bucket}` - List objects
-- `GET /api/s3/{bucket}/{key}` - Get object
-- `PUT /api/s3/{bucket}/{key}` - Put object
-- `DELETE /api/s3/{bucket}/{key}` - Delete object
-- `HEAD /api/s3/{bucket}/{key}` - Head object
-
-### Admin
-
-- `GET /api/admin/users` - List users
-- `PUT /api/admin/users` - Update user
-- `DELETE /api/admin/users` - Delete user
-- `GET /api/admin/settings` - Get settings
-- `PUT /api/admin/settings` - Update settings
-- `GET /api/admin/env` - Get environment variables
-- `PUT /api/admin/env` - Update environment variables
-
-### User Settings
-
-- `GET /api/user/settings` - Get user settings
-- `PUT /api/user/settings` - Update user settings (including Telegram bot)
-
-## Demo Accounts
-
-- **Admin**: admin@telecloud.io / admin123
-- **User**: demo@telecloud.io / demo123
-
-## Future Roadmap
-
-- [ ] Multiple cloud storage backends (Google Drive, Dropbox, etc.)
-- [ ] Server-side copy between clouds
-- [ ] Backup redundancy (mirror files across multiple Telegram channels)
-- [ ] Automatic backup if Telegram channel is closed
-- [ ] Premium tier with unlimited storage
-- [ ] File encryption at rest
+Or use the Vercel dashboard to import from GitHub.
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.

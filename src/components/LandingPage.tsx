@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { AuthModal } from './AuthModal';
 import {
   Cloud, Upload, Shield, Zap, Globe, Code, ChevronRight,
-  Check, ArrowRight, Github, Terminal, Database, Lock
+  Check, ArrowRight, Github, Terminal, Database, Lock,
+  CreditCard, Sparkles, Bot, HardDrive
 } from 'lucide-react';
 
 export function LandingPage() {
@@ -13,8 +14,13 @@ export function LandingPage() {
   const features = [
     {
       icon: Cloud,
-      title: 'Unlimited Storage',
-      description: 'Store unlimited files using Telegram as your backend. No storage limits, no hidden fees.',
+      title: '50MB Free Storage',
+      description: 'Get started instantly with 50MB of free cloud storage. No credit card required.',
+    },
+    {
+      icon: Sparkles,
+      title: 'Unlimited with Upgrade',
+      description: 'Upgrade your account, configure your own Telegram bot, and unlock unlimited storage.',
     },
     {
       icon: Code,
@@ -24,12 +30,7 @@ export function LandingPage() {
     {
       icon: Shield,
       title: 'Secure & Private',
-      description: 'End-to-end encryption. Your files are stored securely on Telegram servers.',
-    },
-    {
-      icon: Zap,
-      title: 'Lightning Fast',
-      description: 'Global CDN delivery. Files are served from the nearest Telegram server.',
+      description: 'Files are stored securely on Telegram servers. Premium users get their own private bot.',
     },
     {
       icon: Globe,
@@ -73,10 +74,13 @@ rclone ls telecloud:my-bucket/`;
               <a href="#features" className="hidden md:block text-gray-400 hover:text-white transition-colors">
                 Features
               </a>
+              <a href="#pricing" className="hidden md:block text-gray-400 hover:text-white transition-colors">
+                Pricing
+              </a>
               <a href="#api" className="hidden md:block text-gray-400 hover:text-white transition-colors">
                 API
               </a>
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
+              <a href="https://github.com/komputeks/telecloud-storage" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
                 <Github className="w-5 h-5" />
               </a>
               <button
@@ -95,11 +99,11 @@ rclone ls telecloud:my-bucket/`;
         <div className="max-w-7xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#6366f1]/20 rounded-full text-[#6366f1] text-sm font-medium mb-6">
             <Zap className="w-4 h-4" />
-            Free & Open Source
+            50MB Free — Unlimited with Upgrade
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
-            Unlimited Cloud Storage
+            Cloud Storage
             <br />
             <span className="bg-gradient-to-r from-[#6366f1] via-[#8b5cf6] to-[#22d3ee] bg-clip-text text-transparent">
               Powered by Telegram
@@ -107,8 +111,8 @@ rclone ls telecloud:my-bucket/`;
           </h1>
 
           <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-8">
-            Store unlimited files with an S3-compatible API. Use your existing tools, 
-            pay nothing, and enjoy global CDN delivery.
+            Start with 50MB free storage. Upgrade to unlock unlimited storage with your own 
+            Telegram bot. S3-compatible API included.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -116,7 +120,7 @@ rclone ls telecloud:my-bucket/`;
               onClick={() => setShowAuth(true)}
               className="flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] hover:from-[#818cf8] hover:to-[#a78bfa] text-white font-semibold rounded-xl transition-all text-lg"
             >
-              Start Storing Free
+              Start Free
               <ArrowRight className="w-5 h-5" />
             </button>
             <a
@@ -131,12 +135,12 @@ rclone ls telecloud:my-bucket/`;
           {/* Stats */}
           <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto mt-16">
             <div>
-              <p className="text-3xl font-bold text-white">∞</p>
-              <p className="text-gray-500 text-sm">Storage</p>
+              <p className="text-3xl font-bold text-white">50MB</p>
+              <p className="text-gray-500 text-sm">Free Storage</p>
             </div>
             <div>
-              <p className="text-3xl font-bold text-white">50MB</p>
-              <p className="text-gray-500 text-sm">Max File Size</p>
+              <p className="text-3xl font-bold text-white">∞</p>
+              <p className="text-gray-500 text-sm">With Upgrade</p>
             </div>
             <div>
               <p className="text-3xl font-bold text-white">99.9%</p>
@@ -154,8 +158,8 @@ rclone ls telecloud:my-bucket/`;
               Everything You Need
             </h2>
             <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-              A complete cloud storage solution with all the features you expect, 
-              without the enterprise price tag.
+              A complete cloud storage solution with S3-compatible API, 
+              web UI, and Telegram-powered backend.
             </p>
           </div>
 
@@ -176,8 +180,99 @@ rclone ls telecloud:my-bucket/`;
         </div>
       </section>
 
+      {/* Pricing */}
+      <section id="pricing" className="py-20 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-white mb-4">Simple Pricing</h2>
+            <p className="text-gray-400 text-lg">Start free, upgrade when you need more.</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {/* Free Plan */}
+            <div className="p-8 bg-[#111118] border border-[#27272a] rounded-2xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-xl bg-gray-500/20">
+                  <HardDrive className="w-6 h-6 text-gray-400" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Free</h3>
+                  <p className="text-gray-500 text-sm">Get started instantly</p>
+                </div>
+              </div>
+              <div className="mb-6">
+                <span className="text-4xl font-bold text-white">$0</span>
+                <span className="text-gray-500">/forever</span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                {[
+                  '50MB storage',
+                  'Web UI file manager',
+                  'Shared Telegram bot',
+                  'S3-compatible API',
+                  'API key access',
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3">
+                    <Check className="w-4 h-4 text-[#22c55e]" />
+                    <span className="text-gray-300">{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => setShowAuth(true)}
+                className="w-full py-3 bg-[#1e1e2e] hover:bg-[#27272a] text-white font-semibold rounded-xl transition-all"
+              >
+                Sign Up Free
+              </button>
+            </div>
+
+            {/* Premium Plan */}
+            <div className="p-8 bg-gradient-to-b from-[#6366f1]/10 to-[#111118] border border-[#6366f1]/30 rounded-2xl relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] rounded-full text-xs font-bold text-white">
+                RECOMMENDED
+              </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-xl bg-[#6366f1]/20">
+                  <Sparkles className="w-6 h-6 text-[#6366f1]" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Premium</h3>
+                  <p className="text-gray-500 text-sm">Unlimited everything</p>
+                </div>
+              </div>
+              <div className="mb-6">
+                <span className="text-4xl font-bold text-white">TBD</span>
+                <span className="text-gray-500"> via M-Pesa</span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                {[
+                  'Unlimited storage',
+                  'Your own private Telegram bot',
+                  'Full S3 API access',
+                  'Priority support',
+                  'Custom integrations',
+                  'Webhook support',
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3">
+                    <Check className="w-4 h-4 text-[#6366f1]" />
+                    <span className="text-gray-300">{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                className="w-full py-3 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] hover:from-[#818cf8] hover:to-[#a78bfa] text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-5 h-5" />
+                Coming Soon
+              </button>
+              <p className="text-xs text-gray-500 text-center mt-2">M-Pesa integration in progress</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* API Section */}
-      <section id="api" className="py-20 px-4">
+      <section id="api" className="py-20 px-4 bg-[#111118]/50">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -186,7 +281,7 @@ rclone ls telecloud:my-bucket/`;
               </h2>
               <p className="text-gray-400 text-lg mb-6">
                 Use your existing S3 tools and SDKs. Just change the endpoint URL 
-                and you're ready to go. Works with rclone, AWS CLI, and more.
+                and you&apos;re ready to go. Works with rclone, AWS CLI, and more.
               </p>
 
               <ul className="space-y-4">
@@ -222,37 +317,18 @@ rclone ls telecloud:my-bucket/`;
       </section>
 
       {/* How it works */}
-      <section className="py-20 px-4 bg-[#111118]/50">
+      <section className="py-20 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-white mb-4">
-              How It Works
-            </h2>
-            <p className="text-gray-400 text-lg">
-              Get started in less than 2 minutes
-            </p>
+            <h2 className="text-4xl font-bold text-white mb-4">How It Works</h2>
+            <p className="text-gray-400 text-lg">Get started in less than 2 minutes</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              {
-                step: '01',
-                title: 'Create Account',
-                description: 'Sign up for free with just your email. No credit card required.',
-                icon: Lock,
-              },
-              {
-                step: '02',
-                title: 'Configure Storage',
-                description: 'Connect your Telegram bot or use default settings for unlimited storage.',
-                icon: Database,
-              },
-              {
-                step: '03',
-                title: 'Start Uploading',
-                description: 'Use our web UI or S3 API to upload and manage files.',
-                icon: Upload,
-              },
+              { step: '01', title: 'Create Account', description: 'Sign up for free with your email. Get 50MB storage instantly.', icon: Lock },
+              { step: '02', title: 'Upload Files', description: 'Use our web UI or S3 API to upload and manage your files.', icon: Upload },
+              { step: '03', title: 'Upgrade for More', description: 'Need more? Upgrade and connect your own Telegram bot for unlimited storage.', icon: Bot },
             ].map((item, index) => (
               <div key={index} className="relative">
                 <div className="text-6xl font-bold text-[#27272a] mb-4">{item.step}</div>
@@ -268,13 +344,11 @@ rclone ls telecloud:my-bucket/`;
       </section>
 
       {/* CTA */}
-      <section className="py-20 px-4">
+      <section className="py-20 px-4 bg-[#111118]/50">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">
-            Ready to Get Started?
-          </h2>
+          <h2 className="text-4xl font-bold text-white mb-4">Ready to Get Started?</h2>
           <p className="text-gray-400 text-lg mb-8">
-            Join thousands of users who are already storing their files for free.
+            Create your free account and start storing files in seconds.
           </p>
           <button
             onClick={() => setShowAuth(true)}
@@ -301,7 +375,7 @@ rclone ls telecloud:my-bucket/`;
           </p>
 
           <div className="flex items-center gap-4">
-            <a href="#" className="text-gray-400 hover:text-white transition-colors">
+            <a href="https://github.com/komputeks/telecloud-storage" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
               <Github className="w-5 h-5" />
             </a>
           </div>

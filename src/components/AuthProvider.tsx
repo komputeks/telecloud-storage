@@ -7,6 +7,7 @@ interface User {
   email: string;
   name?: string;
   is_admin: boolean;
+  is_upgraded: boolean;
   storage_used: number;
   storage_limit: number;
   created_at: string;
@@ -54,13 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        return { error: data.error || 'Login failed' };
-      }
-
+      if (!res.ok) return { error: data.error || 'Login failed' };
       setUser(data.user);
       return {};
     } catch {
@@ -75,13 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        return { error: data.error || 'Registration failed' };
-      }
-
+      if (!res.ok) return { error: data.error || 'Registration failed' };
       setUser(data.user);
       return {};
     } catch {

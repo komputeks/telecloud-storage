@@ -80,8 +80,8 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (userData && userData.storage_used + sourceFile.size > userData.storage_limit) {
-      return NextResponse.json({ error: 'Storage quota exceeded' }, { status: 400 });
+    if (userData && userData.storage_limit > 0 && userData.storage_used + sourceFile.size > userData.storage_limit) {
+      return NextResponse.json({ error: 'Storage quota exceeded. Upgrade for unlimited storage.' }, { status: 400 });
     }
 
     // Get Telegram client
