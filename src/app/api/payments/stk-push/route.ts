@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     // Initiate STK push via Lipia
     const externalRef = `tc_${user.id.slice(0, 8)}_${Date.now()}`;
-    const callbackUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://telecloud-storage.vercel.app'}/api/payments/callback`;
+    const callbackUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://komputeks-telecloud.vercel.app'}/api/payments/callback`;
 
     const res = await fetch('https://lipia-api.kreativelabske.com/api/v2/payments/stk-push', {
       method: 'POST',

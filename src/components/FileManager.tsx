@@ -444,7 +444,8 @@ export function FileManager() {
 
   // Move files to another bucket
   const handleMoveFiles = async () => {
-    if (!bucketToManage || moveTargetBucket === bucketToManage) return;
+    const actualTarget = moveTargetBucket === '_new' ? newBucketName.trim() : moveTargetBucket;
+    if (!bucketToManage || !actualTarget || actualTarget === bucketToManage) return;
     
     setUploading(true);
     const bucketFiles = files.filter(f => f.bucket === bucketToManage);
@@ -459,7 +460,7 @@ export function FileManager() {
             fileId: file.id,
             sourceBucket: bucketToManage,
             sourceKey: file.key,
-            destBucket: moveTargetBucket,
+            destBucket: actualTarget,
             destKey: file.key,
             syncToTelegram: true,
           }),
@@ -470,11 +471,12 @@ export function FileManager() {
       }
     }
     
-    setAllBuckets(prev => [...new Set([...prev, moveTargetBucket])]);
-    toast('success', `Moved ${moved} file(s) to ${moveTargetBucket}`);
+    setAllBuckets(prev => [...new Set([...prev, actualTarget])]);
+    toast('success', `Moved ${moved} file(s) to ${actualTarget}`);
     await fetchFiles();
     setShowMovePopup(false);
     setBucketToManage(null);
+    setNewBucketName('');
     setUploading(false);
   };
 

@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: 'telecloud-storage',
+          name: 'komputeks-telecloud',
           target: 'production',
           gitSource: {
             type: 'github',

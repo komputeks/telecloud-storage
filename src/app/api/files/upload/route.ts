@@ -21,10 +21,22 @@ export async function POST(request: NextRequest) {
     const bucket = formData.get('bucket') as string || 'default';
     const key = formData.get('key') as string || file?.name;
     const url = formData.get('url') as string;
+    const metadataStr = formData.get('metadata') as string;
+    let parsedMetadata: Record<string, string> | undefined;
+    let customMetadata: Record<string, unknown> | undefined;
+    if (metadataStr) {
+      try {
+        const parsed = JSON.parse(metadataStr);
+        if (parsed.description) {
+          customMetadata = { description: parsed.description };
+        }
+        parsedMetadata = parsed;
+      } catch { /* ignore */ }
+    }
 
     // Handle URL upload
     if (url && !file) {
-      const result = await storageService.uploadFromUrl(user.id, bucket, key, url);
+      const result = await storageService.uploadFromUrl(user.id, bucket, key, url, parsedMetadata, undefined, customMetadata);
 
       if (!result.success) {
         return NextResponse.json({ error: result.error }, { status: 400 });

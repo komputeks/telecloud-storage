@@ -84,6 +84,12 @@ export async function DELETE(request: NextRequest) {
 
     // Delete user's files first
     await supabaseAdmin.from('telecloud_files').delete().eq('user_id', userId);
+    // Delete user's messages
+    await supabaseAdmin.from('telecloud_messages').delete().eq('user_id', userId);
+    // Delete user's purchases
+    await supabaseAdmin.from('telecloud_purchases').delete().eq('user_id', userId);
+    // Delete user's API keys
+    await supabaseAdmin.from('telecloud_api_keys').delete().eq('user_id', userId);
 
     // Delete user
     const { error } = await supabaseAdmin.from('telecloud_users').delete().eq('id', userId);

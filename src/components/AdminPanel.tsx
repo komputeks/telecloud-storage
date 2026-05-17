@@ -5,7 +5,7 @@ import { useAuth } from './AuthProvider';
 import {
   Users, Settings, BarChart3, Shield, Database, Globe,
   RefreshCw, Trash2, Edit, Save, Loader2, AlertCircle,
-  HardDrive, FileText, Key, Bot, Check, Eye, EyeOff
+  HardDrive, FileText, Key, Bot, Check, Eye, EyeOff, X
 } from 'lucide-react';
 
 interface User {
@@ -35,6 +35,10 @@ export function AdminPanel() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [editingUser, setEditingUser] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', is_admin: false, is_upgraded: false, storage_limit: 0 });
+  const [editSaving, setEditSaving] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalFiles: 0,
@@ -123,22 +127,60 @@ export function AdminPanel() {
     }
   };
 
-  const deleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user? This cannot be undone.')) return;
+  const openEditUser = (u: User) => {
+    setEditForm({
+      name: u.name || '',
+      email: u.email,
+      is_admin: u.is_admin,
+      is_upgraded: u.is_upgraded || false,
+      storage_limit: u.storage_limit,
+    });
+    setEditingUser(u.id);
+  };
 
+  const saveEditUser = async () => {
+    if (!editingUser) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: editingUser,
+          updates: {
+            name: editForm.name,
+            is_admin: editForm.is_admin,
+            is_upgraded: editForm.is_upgraded,
+            storage_limit: editForm.storage_limit,
+          },
+        }),
+      });
+      if (res.ok) {
+        await fetchData();
+        setEditingUser(null);
+      }
+    } catch (error) {
+      console.error('Failed to update user:', error);
+    }
+    setEditSaving(false);
+  };
+
+  const deleteUser = async (userId: string) => {
+    setDeleting(true);
     try {
       const res = await fetch('/api/admin/users', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       });
-
       if (res.ok) {
         await fetchData();
+        setDeleteConfirmId(null);
       }
     } catch (error) {
       console.error('Failed to delete user:', error);
     }
+    setDeleting(false);
   };
 
   const saveSettings = async () => {
@@ -370,14 +412,16 @@ export function AdminPanel() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => setEditingUser(u.id)}
+                          onClick={() => openEditUser(u)}
                           className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--border)] transition-colors"
+                          title="Edit user"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => deleteUser(u.id)}
+                          onClick={() => setDeleteConfirmId(u.id)}
                           className="p-1.5 rounded-lg text-[var(--muted)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          title="Delete user"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -539,6 +583,88 @@ export function AdminPanel() {
           </div>
         ) : null}
       </main>
+
+      {/* Edit User Popup */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-[#111118] border border-[#27272a] rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-[#27272a]">
+              <h3 className="text-lg font-bold text-white">Edit User</h3>
+              <button onClick={() => setEditingUser(null)} className="p-1.5 rounded-lg hover:bg-[#1e1e2e]">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Name</label>
+                <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-[#1e1e2e] border border-[#27272a] rounded-xl text-white focus:outline-none focus:border-[#6366f1]" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Email</label>
+                <input value={editForm.email} disabled
+                  className="w-full px-3 py-2.5 bg-[#0a0a0f] border border-[#27272a] rounded-xl text-gray-500 cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Storage Limit (bytes)</label>
+                <select value={editForm.storage_limit} onChange={(e) => setEditForm({ ...editForm, storage_limit: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2.5 bg-[#1e1e2e] border border-[#27272a] rounded-xl text-white focus:outline-none focus:border-[#6366f1]">
+                  <option value={104857600}>100 MB (Free)</option>
+                  <option value={524288000}>500 MB</option>
+                  <option value={1073741824}>1 GB</option>
+                  <option value={5368709120}>5 GB (Premium)</option>
+                  <option value={10737418240}>10 GB</option>
+                  <option value={53687091200}>50 GB</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={editForm.is_admin} onChange={(e) => setEditForm({ ...editForm, is_admin: e.target.checked })}
+                    className="w-4 h-4 rounded accent-[#6366f1]" />
+                  <span className="text-sm text-white">Admin</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={editForm.is_upgraded} onChange={(e) => setEditForm({ ...editForm, is_upgraded: e.target.checked })}
+                    className="w-4 h-4 rounded accent-[#22c55e]" />
+                  <span className="text-sm text-white">Upgraded</span>
+                </label>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditingUser(null)} className="flex-1 py-2.5 bg-[#1e1e2e] text-gray-400 rounded-xl text-sm font-medium hover:bg-[#27272a]">Cancel</button>
+                <button onClick={saveEditUser} disabled={editSaving}
+                  className="flex-1 py-2.5 bg-[#6366f1] text-white rounded-xl text-sm font-medium hover:bg-[#818cf8] disabled:opacity-50 flex items-center justify-center gap-2">
+                  {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirm Popup */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-[#111118] border border-[#27272a] rounded-2xl shadow-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-xl bg-red-500/20">
+                <AlertCircle className="w-6 h-6 text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Delete User</h3>
+            </div>
+            <p className="text-sm text-gray-400 mb-1">Are you sure you want to delete this user?</p>
+            <p className="text-sm text-gray-400 mb-4">All their files, messages, and data will be permanently removed. This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2.5 bg-[#1e1e2e] text-gray-400 rounded-xl text-sm font-medium hover:bg-[#27272a]">Cancel</button>
+              <button onClick={() => deleteUser(deleteConfirmId)} disabled={deleting}
+                className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2">
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

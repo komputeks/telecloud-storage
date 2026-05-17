@@ -80,7 +80,7 @@ rclone ls telecloud:my-bucket/`;
               <a href="#api" className="hidden md:block text-gray-400 hover:text-white transition-colors">
                 API
               </a>
-              <a href="https://github.com/komputeks/telecloud-storage" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
+              <a href="https://github.com/komputeks/komputeks-telecloud" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
                 <Github className="w-5 h-5" />
               </a>
               <button
@@ -376,7 +376,7 @@ rclone ls telecloud:my-bucket/`;
           </p>
 
           <div className="flex items-center gap-4">
-            <a href="https://github.com/komputeks/telecloud-storage" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
+            <a href="https://github.com/komputeks/komputeks-telecloud" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors">
               <Github className="w-5 h-5" />
             </a>
           </div>

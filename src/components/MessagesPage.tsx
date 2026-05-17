@@ -166,7 +166,7 @@ export function MessagesPage() {
               </div>
               Messages
             </h1>
-            <p className="text-sm text-[var(--muted)] mt-1">Send messages to your Telegram channel</p>
+            <p className="text-sm text-[var(--muted)] mt-1">Send messages to {messages.length > 0 && messages[0].channel_name ? messages[0].channel_name : 'your Telegram channel'}</p>
           </div>
           <div className="flex items-center gap-2">
             {selected.size > 0 && (

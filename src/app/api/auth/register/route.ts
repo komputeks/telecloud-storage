@@ -25,6 +25,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
+    // Send welcome email (non-blocking)
+    try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://komputeks-telecloud.vercel.app';
+      fetch(`${siteUrl}/api/auth/welcome-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name: name || email.split('@')[0] }),
+      }).catch(() => {});
+    } catch { /* non-critical */ }
+
     const response = NextResponse.json({
       user: result.user,
       token: result.token,

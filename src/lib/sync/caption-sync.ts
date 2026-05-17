@@ -89,19 +89,17 @@ export class CaptionBuilder {
     const user = username || 'User';
 
     const lines: string[] = [
-      `📩 ${fileName}`,
+      fileName,
     ];
 
     if (description) {
       lines.push('');
-      lines.push('🎯 DESCRIPTION');
       lines.push(description);
     }
 
     lines.push('');
-    lines.push(`Upload by 💻 ${user}`);
-    lines.push(`📂 Folder: ${bucket}`);
-    lines.push(`Via: ${SITE_URL}`);
+    lines.push(`Uploader: @${user}`);
+    lines.push(`📁 Folder: ${bucket}`);
 
     const result = lines.join('\n');
     return result.length > MAX_CAPTION_LENGTH ? result.slice(0, MAX_CAPTION_LENGTH) : result;
@@ -115,16 +113,8 @@ export class CaptionBuilder {
    * Posted by {username}
    * via https://komputeks-telecloud.vercel.app
    */
-  static buildMessage(content: string, username?: string): string {
-    const user = username || 'User';
-    const lines: string[] = [
-      content,
-      '',
-      `Posted by ${user}`,
-      '',
-      `via ${SITE_URL}`,
-    ];
-    return lines.join('\n');
+  static buildMessage(content: string, _username?: string): string {
+    return content;
   }
 
   /**
