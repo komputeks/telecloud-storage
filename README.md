@@ -53,7 +53,7 @@ Premium upgrade via M-Pesa (Lipia) — coming soon.
 
 ```bash
 # Clone the repo
-git clone https://github.com/komputeks/telecloud-storage.git
+git clone https://github.com/komputeks/komputeks-telecloud.git
 cd telecloud-storage
 
 # Install dependencies
